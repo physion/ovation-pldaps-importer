@@ -15,18 +15,12 @@ classdef TestPDSImport < TestPldapsBase
             % N.B. these value should match those in runtestsuite
             [~,self.trialFunctionName,~] = fileparts(self.pdsFile);
             
-            % Import the plx file
-            %ImportPladpsPlx(self.epochGroup,...
-            %   self.plxFile);
         end
         
         function setUp(self)
            setUp@TestPldapsBase(self);
            
-           %TODO remove for real testing
-           itr = self.context.query('EpochGroup', 'true');
-           self.epochGroup = itr.next();
-           assertFalse(itr.hasNext());
+           self.importFixture();
         end
         
         % EpochGroup
