@@ -1,4 +1,4 @@
-function epochGroup = ImportPldapsPDS(experiment,...
+function epochGroup = ImportPldapsPDS(container,...
                                       animal,...
                                       pdsfile,...
                                       timezone,...
@@ -36,15 +36,18 @@ function epochGroup = ImportPldapsPDS(experiment,...
     [~, trialFunction, ~] = fileparts(pdsfile);
     
     
+    % TODO: tool to set the equipment setup for an experiment
     % External devices
-    devices.psychToolbox = experiment.externalDevice('PsychToolbox', 'Huk lab');
-    devices.psychToolbox.addProperty('psychtoolbox version', '3.0.8');
-    devices.psychToolbox.addProperty('matlab version', 'R2009a 32bit');
-    devices.datapixx = experiment.externalDevice('DataPixx', 'VPixx Technologies');
-    devices.monitor = experiment.externalDevice('Monitor LH 1080p', 'LG');
-    devices.monitor.addProperty('resolution', NumericData([1920, 1080]));
-    devices.eye_tracker = experiment.externalDevice('Eye Trac 6000', 'ASL');
-    devices.eye_tracker_timer = experiment.externalDevice('Windows', 'Microsoft');
+    devices.psychToolbox.version = '3.0.8';
+    devices.psychToolbox.matlab_version = 'R2009a 32bit';
+    devices.datapixx.manufacturer = 'VPixx Technologies';
+    devices.monitor.model = 'LH 1080p';
+    devices.monitor.manufacturer = 'LG';
+    devices.monitor.resolution.width = 1920;
+    devices.monitor.resolution.height = 1080;
+    devices.eye_tracker.model = 'Eye Trac 6000';
+    devices.eye_tracker.manufacturer = 'ASL';
+    devices.eye_tracker.timer = 'Microsoft Windows';
     
     % generate the start and end times for each epoch, from the unique_number and
     % timezone
@@ -63,10 +66,10 @@ function epochGroup = ImportPldapsPDS(experiment,...
     
     
     %% Insert one epochGroup per PDS file
-    epochGroup = experiment.insertEpochGroup(animal,...
-        trialFunction, ...
+    epochGroup = container.insertEpochGroup(animal,...
         firstEpochStart,...
-        lastEpochEnd);
+        [],... % No EpochGroup-level protocol
+        []);
     
     % Convert DV paired cells to a struct
     displayVariables.bits = cell2struct(displayVariables.bits(:,2)',...
@@ -135,9 +138,9 @@ function insertEpochs(epochGroup, protocolID, pds, parameters, devices, ntrials)
                interEpoch.addProperty('dataPixxStart_seconds', interEpochDataPixxStart);
                interEpoch.addProperty('dataPixxStop_seconds', interEpochDataPixxStop);
                
-               if(~isempty(previousEpoch))
-                   interEpoch.setPreviousEpoch(previousEpoch);
-               end
+               %if(~isempty(previousEpoch))
+               %    interEpoch.setPreviousEpoch(previousEpoch);
+               %end
                
                previousEpoch = interEpoch;
            end

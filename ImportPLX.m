@@ -12,14 +12,9 @@ function ImportPLX(epochGroup, plxFile, bits, plxRawFile, expFile, varargin)
     %      bits: bits field from the DV structure. Defines mapping from
     %      digital bit to event name.
     %
-    %      plxRawFile: Path to .plx file from wich plxFile was generated.
+    %      plxRawFile: Path to .plx file from which plxFile was generated.
     
-    nargchk(5, 6, nargin); %#ok<NCHKI>
-    if(nargin < 6)
-        ntrials = [];
-    else
-        ntrials = varargin{1};
-    end
+    narginchk(5, 6);
     
     import ovation.*
     

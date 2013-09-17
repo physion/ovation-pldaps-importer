@@ -1,13 +1,11 @@
 classdef TestPDSImport < TestPldapsBase
     
     properties
-        epochGroup
         trialFunctionName
     end
     
     methods
-        function self = TestPDSImport(name)
-            self = self@TestPldapsBase(name);
+        function self = TestPDSImport()
             
             import ovation.*;
             import org.joda.time.*;
@@ -16,12 +14,9 @@ classdef TestPDSImport < TestPldapsBase
             [~,self.trialFunctionName,~] = fileparts(self.pdsFile);
             
         end
-        
-        function setUp(self)
-           setUp@TestPldapsBase(self);
-           
-           self.importFixture();
-        end
+    end
+    
+    methods(Test)
         
         % EpochGroup
         %  - should have correct trial function name as group label
@@ -45,21 +40,25 @@ classdef TestPDSImport < TestPldapsBase
 
         
         function testEpochsShouldHaveNextPrevLinks(self)
+            self.assumeTrue(false, 'Not implemented');
             
-            epochs = self.epochGroup.getEpochs();
+            import ovation.*
+            
+            epochs = asarray(self.epochGroup.getEpochs());
             
             for i = 2:length(epochs)
                 prev = epochs(i).getPreviousEpoch();
-                assert(~isempty(prev));
+                self.assertNotEmpty(prev);
                 if(strfind(epochs(i).getProtocolID(), 'intertrial'))
-                    assert(isempty(strfind(prev.getProtocolID(),'intertrial')));
-                    assertFalse(isempty(prev.getOwnerProperty('trialNumber')));
+                    self.verifyEmpty(strfind(prev.getProtocolID(),'intertrial'));
+                    self.verifyNotEmpty(prev.getOwnerProperty('trialNumber'));
                 else
-                    assertTrue(~isempty(strfind(prev.getProtocolID(),'intertrial')));
+                    self.verifyNotEmpty(strfind(prev.getProtocolID(),'intertrial'));
                 end
                 
             end
         end
+        
         
         function testImportsCorrectNumberOfEpochs(self)
             import ovation.*;
@@ -68,11 +67,13 @@ classdef TestPDSImport < TestPldapsBase
             % We expect PDS epochs + inter-trial epochs
             expectedEpochCount = (size(fileStruct.PDS.unique_number, 1) * 2) -1;
             
-            assertEqual(expectedEpochCount, self.epochGroup.getEpochCount());
+            self.assertEqual(expectedEpochCount, length(asarray(self.epochGroup.getEpochs()));
         end
+        
         
         function testEpochShouldHaveDVParameters(self)
             import ovation.*;
+            
             fileStruct = load(self.pdsFile, '-mat');
             dv = fileStruct.dv;
             
@@ -82,7 +83,7 @@ classdef TestPDSImport < TestPldapsBase
                 2);
             
             dvMap = ovation.struct2map(dv);
-            epochsItr = self.epochGroup.getEpochsIterable().iterator();
+            epochsItr = self.epochGroup.getEpochs().iterator();
             while(epochsItr.hasNext())
                 epoch = epochsItr.next();
                 keyItr = dvMap.keySet().iterator();
@@ -102,34 +103,35 @@ classdef TestPDSImport < TestPldapsBase
             end
         end
         
+        
         function testEpochShouldHavePDSProtocolParameters(self)
             import ovation.*;
             fileStruct = load(self.pdsFile, '-mat');
             pds = fileStruct.PDS;
             
             
-            epochs = self.epochGroup.getEpochs();
+            epochs = asarray(self.epochGroup.getEpochs());
             
             i = 1;
             for e = 1:length(epochs)
                 epoch = epochs(e);
-                if(isempty(strfind(epoch.getProtocolID(), 'intertrial')))
-                    assertEqual(pds.targ1XY(i),...
+                if(isempty(strfind(epoch.getProtocol().getName(), 'intertrial')))
+                    self.verifyEqual(pds.targ1XY(i),...
                         epoch.getProtocolParameter('target1_XY_deg_visual_angle'));
                     if(isfield(pds, 'targ2XY'))
-                        assertEqual(pds.targ2XY(i),...
+                        self.verifyEqual(pds.targ2XY(i),...
                             epoch.getProtocolParameter('target2_XY_deg_visual_angle'));
                     end
                     if(isfield(pds,'coherence'))
-                        assertEqual(pds.coherence(i),...
+                        self.verifyEqual(pds.coherence(i),...
                             epoch.getProtocolParameter('coherence'));
                     end
                     if(isfield(pds, 'fp2XY'))
-                        assertEqual(pds.fp2XY(i),...
+                        self.verifyEqual(pds.fp2XY(i),...
                             epoch.getProtocolParameter('fp2_XY_deg_visual_angle'));
                     end
                     if(isfield(pds,'inRF'))
-                        assertEqual(pds.inRF(i),...
+                        self.verifyEqual(pds.inRF(i),...
                             epoch.getProtocolParameter('inReceptiveField'));
                     end
                     i = i+1;
@@ -138,7 +140,8 @@ classdef TestPDSImport < TestPldapsBase
         end
         
         function testEpochsShouldBeSequentialInTime(self)
-            epochs = self.epochGroup.getEpochs();
+            
+            epochs = asarray(self.epochGroup.getEpochs());
             
             for i = 2:length(epochs)
                 assertJavaEqual(epochs(i).getPreviousEpoch(),...

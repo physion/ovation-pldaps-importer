@@ -1,8 +1,4 @@
-classdef TestPldapsBase < MatlabTestCase
-    
-    properties
-        context
-    end
+classdef TestPldapsBase < ovation.test.ClassFixtureTestCase
     
     properties(Constant)
         
@@ -24,12 +20,14 @@ classdef TestPldapsBase < MatlabTestCase
         timezone = org.joda.time.DateTimeZone.forID('US/Central');
     end
     
+    properties 
+        epochGroup
+    end
+    
     methods
-        function self = TestPldapsBase(name)
-            self = self@MatlabTestCase(name);
-        end
         
-        function importFixture(self)
+        function localFixture(self)
+            import ovation.*;
             
             ctx = self.context;
             
@@ -47,23 +45,23 @@ classdef TestPldapsBase < MatlabTestCase
             
             % Import the PDS file
             tic;
-            epochGroup = ImportPldapsPDS(expt,...
+            self.epochGroup = ImportPldapsPDS(expt,...
                 source,...
                 self.pdsFile,...
                 self.timezone);
             toc;
-            epochGroup.addResource('edu.utexas.huk.pds', self.pdsFile);
+            self.epochGroup.addResource('edu.utexas.huk.pds', self.pdsFile);
             
             pdsStruct = load(self.pdsFile, '-mat');
             dv = pdsStruct.dv;
             
-            tic;
-            ImportPLX(epochGroup,...
-                self.plxFile,...
-                dv.bits,...
-                self.plxRawFile,...
-                self.plxExpFile);
-            toc;
+%             tic;
+%             ImportPLX(epochGroup,...
+%                 self.plxFile,...
+%                 dv.bits,...
+%                 self.plxRawFile,...
+%                 self.plxExpFile);
+%             toc;
             
             
         end

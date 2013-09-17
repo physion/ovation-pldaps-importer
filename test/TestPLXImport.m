@@ -51,6 +51,10 @@ classdef TestPLXImport < TestPldapsBase
             self.epochCache = epochCache;
         end
         
+    end
+    
+    methods(Test)
+        
         % The PLX import should
         %  - import spike data to existing Epochs
         %    - with spike times t0 <= ts < end_trial
