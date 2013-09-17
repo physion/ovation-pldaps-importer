@@ -3,7 +3,7 @@ PL-DA-PS importer for Ovation
 =============================
 
 
-This project contains Matlab[1]_ code for importing `PL-DA-PS <http://hukdata.cps.utexas.edu/archive/PLDAPS.html>` data into the `Ovation Scientific Data Management System <http://physionconsulting.com/web/Ovation.html>`.
+This project contains Matlab[1]_ code for importing `PL-DA-PS <http://hukdata.cps.utexas.edu/archive/PLDAPS.html>` data into the `Ovation Scientific Data Management System <http://ovation.io>`.
 
 
 Basic Usage
@@ -15,12 +15,12 @@ To use the importer:
 #. Choose an Ovation ``Experiment`` object to insert data into. To create a ``Project`` and ``Experiment``::
 
     >> import ovation.*
-    >> context = NewDataContext(<path_to_connection_file>, <username>);
+    >> context = NewDataContext();
     >> project = context.insertProject(<project name>, <project purpose>, <project start date>);
     >> experiment = project.insertExperiment(<expt purpose>, <expt start date>);
 #. Insert a PL-DA-PS ``.PDS`` file as an ``EpochGroup``::
 
-    >> epochGropu = ImportPladpsPDS(experiment,...
+    >> epochGroup = ImportPladpsPDS(experiment,...
         <path to PDS file>,...
         trialFunctionName,...
         experimentTimeZone)
@@ -45,7 +45,7 @@ Automated tests
 To run the automated test suite:
 
 #. Add ``pldaps-importer`` folder to the Matlab path
-#. Add Matlab xUnit (``pldaps-importer/matlab-xunit-doctest/xunit``) to the Matlab path
+#. Add Matlab xUnit test framework to the Matlab path
 #. From within the ``pldaps-importer/test`` directory::
     
     >> runtestsuite
@@ -55,7 +55,7 @@ To run the automated test suite:
 License
 -------
 
-Copyright (c) 2012, Physion Consulting LLC
+Copyright (c) 2012-2013, Physion LLC
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
