@@ -47,13 +47,13 @@ classdef TestPDSImport < TestPldapsBase
             epochs = asarray(self.epochGroup.getEpochs());
             
             for i = 2:length(epochs)
-                prev = epochs(i).getPreviousEpoch();
+                prev = self.context.getObjectWithURI(epochs(i).getProperty(epochs(i).getOwner(), 'previousEpoch'));
                 self.assertNotEmpty(prev);
-                if(strfind(epochs(i).getProtocolID(), 'intertrial'))
-                    self.verifyEmpty(strfind(prev.getProtocolID(),'intertrial'));
+                if(strfind(char(epochs(i).getProtocol().getName()), 'Intertrial'))
+                    self.verifyEmpty(strfind(prev.getProtocol().getName(),'Intertrial'));
                     self.verifyNotEmpty(prev.getOwnerProperty('trialNumber'));
                 else
-                    self.verifyNotEmpty(strfind(prev.getProtocolID(),'intertrial'));
+                    self.verifyNotEmpty(strfind(prev.getProtocol().getName(),'Intertrial'));
                 end
                 
             end

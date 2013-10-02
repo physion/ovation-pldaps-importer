@@ -41,7 +41,7 @@ classdef TestPldapsBase < ovation.test.ClassFixtureTestCase
             source = ctx.insertSource('animal', 'animal-id');
             
             protocol = ctx.insertProtocol('PDS Protocol', 'TEST');
-            interTrialProtocol = ctx.insertProtocol('PDS Inter-trial Protocol', 'TEST');
+            interTrialProtocol = ctx.insertProtocol('PDS Intertrial Protocol', 'TEST');
             
             warning('off', 'ovation:import:plx:unique_number');
             
