@@ -67,7 +67,7 @@ classdef TestPDSImport < TestPldapsBase
             % We expect PDS epochs + inter-trial epochs
             expectedEpochCount = (size(fileStruct.PDS.unique_number, 1) * 2) -1;
             
-            self.assertEqual(expectedEpochCount, length(asarray(self.epochGroup.getEpochs()));
+            self.assertEqual(expectedEpochCount, length(asarray(self.epochGroup.getEpochs())));
         end
         
         
