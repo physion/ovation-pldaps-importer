@@ -105,10 +105,11 @@ function insertEpochs(epochGroup, protocol, animalSource, interTrialProtocol, pd
     previousEpoch = [];
     tic;
     for n=1:ntrials
-        if(mod(n,5) == 0)
+        nTrialProgress = 5;
+        if(mod(n,nTrialProgress) == 0)
             elapsedTime = toc;
             
-            disp(['    ' num2str(n) ' of ' num2str(ntrials) ' (' num2str(elapsedTime/5) ' s/epoch)...']);
+            disp(['    ' num2str(n) ' of ' num2str(ntrials) ' (' num2str(elapsedTime/nTrialProgress) ' s/epoch)...']);
             tic();
         end
         

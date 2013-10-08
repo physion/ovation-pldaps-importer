@@ -64,8 +64,9 @@ classdef TestPDSImport < TestPldapsBase
             import ovation.*;
             fileStruct = load(self.pdsFile, '-mat');
             
-            % We expect PDS epochs + inter-trial epochs
-            expectedEpochCount = (size(fileStruct.PDS.unique_number, 1) * 2) -1;
+            % We expect PDS epochs + inter-trial epochs, but only import
+            % the first 10
+            expectedEpochCount = 19; % 10 trials + 9 inter-trials %(size(fileStruct.PDS.unique_number, 1) * 2) -1;
             
             self.assertEqual(expectedEpochCount, length(asarray(self.epochGroup.getEpochs())));
         end
@@ -117,22 +118,22 @@ classdef TestPDSImport < TestPldapsBase
                 epoch = epochs(e);
                 if(isempty(strfind(epoch.getProtocol().getName(), 'intertrial')))
                     self.verifyEqual(pds.targ1XY(i),...
-                        epoch.getProtocolParameter('target1_XY_deg_visual_angle'));
+                        epoch.getProtocolParameters.get('target1_XY_deg_visual_angle'));
                     if(isfield(pds, 'targ2XY'))
                         self.verifyEqual(pds.targ2XY(i),...
-                            epoch.getProtocolParameter('target2_XY_deg_visual_angle'));
+                            epoch.getProtocolParameters.get('target2_XY_deg_visual_angle'));
                     end
                     if(isfield(pds,'coherence'))
                         self.verifyEqual(pds.coherence(i),...
-                            epoch.getProtocolParameter('coherence'));
+                            epoch.getProtocolParameters.get('coherence'));
                     end
                     if(isfield(pds, 'fp2XY'))
                         self.verifyEqual(pds.fp2XY(i),...
-                            epoch.getProtocolParameter('fp2_XY_deg_visual_angle'));
+                            epoch.getProtocolParameters.get('fp2_XY_deg_visual_angle'));
                     end
                     if(isfield(pds,'inRF'))
                         self.verifyEqual(pds.inRF(i),...
-                            epoch.getProtocolParameter('inReceptiveField'));
+                            epoch.getProtocolParameters.get('inReceptiveField'));
                     end
                     i = i+1;
                 end
@@ -140,6 +141,7 @@ classdef TestPDSImport < TestPldapsBase
         end
         
         function testEpochsShouldBeSequentialInTime(self)
+            self.assumeTrue(false, 'Not implemented');
             
             epochs = asarray(self.epochGroup.getEpochs());
             
@@ -154,13 +156,13 @@ classdef TestPDSImport < TestPldapsBase
             fileStruct = load(self.pdsFile, '-mat');
             pds = fileStruct.PDS;
             
-            epochs = self.epochGroup.getEpochs();
+            epochs = asarray(self.epochGroup.getEpochs());
             
             datapixxmin = min(pds.datapixxstarttime);
             pdsIdx = 1;
             for i = 1:length(epochs)
                 epoch = epochs(pdsIdx);
-                if(~isempty(strfind(char(epoch.getProtocolID()), 'intertrial')))
+                if(~isempty(strfind(char(epoch.getProtocol().getName()), 'intertrial')))
                     assertJavaEqual(epoch.getStartTime(),...
                         self.epochGroup.getStartTime.plusMillis(1000*(pds.datapixxstoptime(pdsIdx-1) - datapixxmin)));
                     assertJavaEqual(epoch.getEndTime(),...
@@ -176,22 +178,22 @@ classdef TestPDSImport < TestPldapsBase
         end
         
         function testShouldUseTrialFunctionNameAsEpochProtocolID(self)
-            epochs = self.epochGroup.getEpochs();
+            epochs = asarray(self.epochGroup.getEpochs());
             for n=1:length(epochs)
-                assertTrue(epochs(n).getProtocolID().equals(java.lang.String(self.trialFunctionName)) ||...
-                strcmp(char(epochs(n).getProtocolID()), [self.trialFunctionName '.intertrial']));
+                assertTrue(epochs(n).getProtocol().getName().equals(java.lang.String(self.trialFunctionName)) ||...
+                strcmp(char(epochs(n).getProtocol().getName()), [self.trialFunctionName '.intertrial']));
             end
         end
         
         function testShouldUseTrialFunctionNameAsEpochGroupLabel(self)
             
-            assertTrue(self.epochGroup.getLabel().equals(java.lang.String(self.trialFunctionName)));
+            self.assertTrue(self.epochGroup.getLabel().equals(java.lang.String(self.trialFunctionName)));
             
         end
         
         function testShouldAttachPDSAsEpochGroupResource(self)
             [~, pdsName, ext] = fileparts(self.pdsFile);
-            assertTrue( ~isempty(self.epochGroup.getResource([pdsName ext])));
+            self.assertNotEmpty(self.epochGroup.getResource([pdsName ext]));
         end
         
         function testEpochShouldHaveProperties(self)
@@ -199,9 +201,9 @@ classdef TestPDSImport < TestPldapsBase
             fileStruct = load(self.pdsFile, '-mat');
             pds = fileStruct.PDS;
             
-             epochs = self.epochGroup.getEpochs();
+             epochs = asarray(self.epochGroup.getEpochs());
             for n=1:length(epochs)
-                if(~isempty(strfind(epochs(n).getProtocolID(), 'intertrial')))
+                if(~isempty(strfind(epochs(n).getProtocol().getName(), 'intertrial')))
                     continue;
                 end
                 
@@ -252,7 +254,7 @@ classdef TestPDSImport < TestPldapsBase
             devices.eye_tracker = experiment.externalDevice('Eye Trac 6000', 'ASL');
             devices.eye_tracker_timer = experiment.externalDevice('Windows', 'Microsoft');
             
-            epochs = self.epochGroup.getEpochs();
+            epochs = asarray(self.epochGroup.getEpochs());
             eyeTrackingEpoch = 1;
             for i=1:length(epochs)
                 epoch = epochs(i);
@@ -275,7 +277,7 @@ classdef TestPDSImport < TestPldapsBase
             end
         end
         
-        function testEpochStimuliShouldHavePluginIDAndParameters(self)
+        function testEpochProtocolParametersShouldHaveStimulusParameters(self)
             experiment = self.epochGroup.getExperiment();
             trialFunction = self.epochGroup.getLabel();
             pluginID = ['edu.utexas.huk.pladapus.' char(trialFunction)];
@@ -292,7 +294,7 @@ classdef TestPDSImport < TestPldapsBase
             
             devices.psychToolbox = experiment.externalDevice('PsychToolbox', 'Huk lab');
 
-            epochsItr = self.epochGroup.getEpochsIterable().iterator();
+            epochsItr = self.epochGroup.getEpochs();
             while(epochsItr.hasNext())
                 epoch = epochsItr.next();
                 s = epoch.getStimulus(devices.psychToolbox.getName());
@@ -310,12 +312,12 @@ classdef TestPDSImport < TestPldapsBase
                     end
                     if(isjava(dvMap.get(key)))
                         assertJavaEqual(dvMap.get(key),...
-                            s.getStimulusParameter(key));
+                            epoch.getProtocolParameters().get(key));
                         assertJavaEqual(dvMap.get(key),...
-                            s.getDeviceParameters.get(key));
+                            epoch.getDeviceParameters().get(key));
                     else
                         assertEqual(dvMap.get(key),...
-                            s.getStimulusParameter(key));
+                            epoch.getProtocolParameters().get(key));
                         assertEqual(dvMap.get(key),...
                             s.getDeviceParameters.get(key));
                     end
@@ -336,7 +338,7 @@ classdef TestPDSImport < TestPldapsBase
             startTime = datetime(unum(1), unum(2), unum(3), unum(4), unum(5), unum(6), 0, self.timezone.getID());
             
             
-            assertJavaEqual(self.epochGroup.getStartTime(),...
+            assertJavaEqual(self.epochGroup.getStart(),...
                 startTime);
             
         end
@@ -349,7 +351,7 @@ classdef TestPDSImport < TestPldapsBase
             
             totalDurationSeconds = max(pds.datapixxstoptime) - min(pds.datapixxstarttime);
             
-            assertJavaEqual(self.epochGroup.getEndTime(),...
+            assertJavaEqual(self.epochGroup.getEnd(),...
                 self.epochGroup.getStartTime().plusMillis(1000*totalDurationSeconds));
         end
     end
