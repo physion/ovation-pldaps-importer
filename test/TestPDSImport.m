@@ -62,11 +62,10 @@ classdef TestPDSImport < TestPldapsBase
         
         function testImportsCorrectNumberOfEpochs(self)
             import ovation.*;
-            fileStruct = load(self.pdsFile, '-mat');
             
             % We expect PDS epochs + inter-trial epochs, but only import
-            % the first 10
-            expectedEpochCount = 19; % 10 trials + 9 inter-trials %(size(fileStruct.PDS.unique_number, 1) * 2) -1;
+            % the first nTrials
+            expectedEpochCount = 2*self.nTrials - 1; % 10 trials + 9 inter-trials %(size(fileStruct.PDS.unique_number, 1) * 2) -1;
             
             self.assertEqual(expectedEpochCount, length(asarray(self.epochGroup.getEpochs())));
         end

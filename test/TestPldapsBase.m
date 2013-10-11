@@ -18,6 +18,8 @@ classdef TestPldapsBase < ovation.test.ClassFixtureTestCase
         %         plxExpFile = 'fixtures/jlyTest040212tmpdots1109.exp';
         
         timezone = org.joda.time.DateTimeZone.forID('US/Central');
+        
+        nTrials = 10;
     end
     
     properties 
@@ -53,7 +55,7 @@ classdef TestPldapsBase < ovation.test.ClassFixtureTestCase
                 interTrialProtocol,...
                 self.pdsFile,...
                 self.timezone,...
-                10);
+                self.nTrials);
             toc;
             
             
