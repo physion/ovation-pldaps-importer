@@ -157,6 +157,9 @@ function insertEpochs(epochGroup, protocol, animalSource, interTrialProtocol, pd
                 interEpoch.addProperty('dataPixxStart_seconds', interEpochDataPixxStart);
                 interEpoch.addProperty('dataPixxStop_seconds', interEpochDataPixxStop);
                 
+                if(epoch.getProtocolParameters().size() == 0)
+                    disp('Crap!');
+                end
                 %if(~isempty(previousEpoch))
                 %    interEpoch.setPreviousEpoch(previousEpoch);
                 %end
@@ -184,6 +187,10 @@ function insertEpochs(epochGroup, protocol, animalSource, interTrialProtocol, pd
         
         epoch.addProperty('goodTrial', pds.goodtrial(n)); %TODO is this a measurement?
         
+        if(epoch.getProtocolParameters().size() == 0)
+                    disp('Crap!');
+        end
+                
         % Next/Prev Epoch not supported in Ovation 2.0 yet
         if(~isempty(previousEpoch))
             epoch.addProperty('previousEpoch', previousEpoch.getURI());
