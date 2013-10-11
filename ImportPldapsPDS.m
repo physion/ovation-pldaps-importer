@@ -36,7 +36,7 @@ function epochGroup = ImportPldapsPDS(container,...
     pds = pdsFileStruct.PDS;
     displayVariables = pdsFileStruct.dv;
     
-    [~, trialFunction, pdsExt] = fileparts(pdsfile);
+    [~, pdsFileName, pdsExt] = fileparts(pdsfile);
     
     
     % External devices
@@ -72,7 +72,7 @@ function epochGroup = ImportPldapsPDS(container,...
         timezone.getID());
     
     %% Insert one epochGroup per PDS file
-    epochGroup = container.insertEpochGroup(trialFunction,...
+    epochGroup = container.insertEpochGroup(pdsFileName,...
         firstEpochStart,...
         protocol,... % No EpochGroup-level protocol
         [],... % No EpochGroup-level protocol parameters
@@ -92,10 +92,15 @@ function epochGroup = ImportPldapsPDS(container,...
         displayVariables,...
         ntrials);
     
-    epochGroup.addResource([trialFunction pdsExt],...
-        java.io.File(pdsfile).toURI().toURL(),... %TODO needs to be full path
+    f = java.io.File(pdsfile);
+    if(~f.isAbsolute())
+        f = java.io.File(fullfile(pwd(), pdsfile));
+    end
+    
+    epochGroup.addResource([pdsFileName pdsExt],...
+        f.toURI().toURL(),...
         'application/x-pldaps',...
-        [trialFunction pdsExt]);
+        [pdsFileName pdsExt]);
     
 end
 
@@ -111,10 +116,16 @@ function insertEpochs(epochGroup, protocol, animalSource, interTrialProtocol, pd
     tic;
     for n=1:ntrials
         nTrialProgress = 1;
-        if(mod(n,nTrialProgress) == 0 && n > 1)
+        if(mod(n,nTrialProgress) == 0)
             elapsedTime = toc;
             
-            disp(['    ' num2str(n) ' of ' num2str(ntrials) ' (' num2str(elapsedTime/nTrialProgress) ' s/epoch)...']);
+            if(n == 1)
+                msg = ['    ' num2str(n) ' of ' num2str(ntrials)];
+            else
+                msg = ['    ' num2str(n) ' of ' num2str(ntrials) ' (' num2str(elapsedTime/nTrialProgress) ' s/epoch)...'];
+            end
+            
+            disp(msg);
             tic();
         end
         
@@ -163,6 +174,10 @@ function insertEpochs(epochGroup, protocol, animalSource, interTrialProtocol, pd
                 interEpoch.addProperty('dataPixxStart_seconds', interEpochDataPixxStart);
                 interEpoch.addProperty('dataPixxStop_seconds', interEpochDataPixxStop);
                 
+                if(interEpoch.getProtocolParameters().size() == 0)
+                    disp('Crap');
+                end
+                
                 %if(~isempty(previousEpoch))
                 %    interEpoch.setPreviousEpoch(previousEpoch);
                 %end
@@ -188,6 +203,9 @@ function insertEpochs(epochGroup, protocol, animalSource, interTrialProtocol, pd
         
         epoch.addProperty('goodTrial', pds.goodtrial(n)); %TODO is this a measurement?
         
+        if(epoch.getProtocolParameters().size() == 0)
+            disp('Crap');
+        end
         % Next/Prev Epoch not supported in Ovation 2.0 yet
         if(~isempty(previousEpoch))
             epoch.addProperty('previousEpoch', previousEpoch.getURI());

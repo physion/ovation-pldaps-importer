@@ -21,7 +21,6 @@ classdef TestPDSImport < TestPldapsBase
         % EpochGroup
         %  - should have correct trial function name as group label
         %  - should have PDS start time (min unique number)
-        %  - should have PDS start time + last datapixxendtime seconds
         %  - should have original plx file attached as Resource
         %  - should have PLX exp file attached as Resource
         % For each Epoch
@@ -29,11 +28,10 @@ classdef TestPDSImport < TestPldapsBase
         %  - should have protocol parameters from dv, PDS
         %  - should have start and end time defined by datapixx
         %  - should have sequential time with prev/next 
-        %  - should have next/pre
+        %  - should have next/pre [not implemented in Ovation 2.0]
         %    - intertrial Epochs should interpolate
         %  - should have approparite stimuli and responses
         % For each stimulus
-        %  - should have correct plugin ID (TBD)
         %  - should have event times (+ other?) stimulus parameters
         % For each response
         %  - should have numeric data from PDS
@@ -74,7 +72,9 @@ classdef TestPDSImport < TestPldapsBase
         function testEpochShouldHaveDVParameters(self)
             import ovation.*;
             
+            warning('off') %#ok<*WNOFF>
             fileStruct = load(self.pdsFile, '-mat');
+            warning('on') %#ok<*WNON>
             dv = fileStruct.dv;
             
             % Convert DV paired cells to a struct
@@ -106,7 +106,9 @@ classdef TestPDSImport < TestPldapsBase
         
         function testEpochShouldHavePDSProtocolParameters(self)
             import ovation.*;
+            warning('off')
             fileStruct = load(self.pdsFile, '-mat');
+            warning('on')
             pds = fileStruct.PDS;
             
             
@@ -115,7 +117,7 @@ classdef TestPDSImport < TestPldapsBase
             i = 1;
             for e = 1:length(epochs)
                 epoch = epochs(e);
-                if(isempty(strfind(epoch.getProtocol().getName(), 'intertrial')))
+                if(isempty(strfind(epoch.getProtocol().getName(), 'Intertrial')))
                     self.verifyEqual(pds.targ1XY(i),...
                         epoch.getProtocolParameters.get('target1_XY_deg_visual_angle'));
                     if(isfield(pds, 'targ2XY'))
@@ -152,22 +154,39 @@ classdef TestPDSImport < TestPldapsBase
             end
         end
                
+        function result = sortEpochs(epochs)
+            startMillis = zeros(size(epochs));
+            for i = 1:length(epochs)
+                startMillis = epochs(i).getStart().getMillis();
+            end
+            [epochs, sortIdx] = sort(startMillis);
+            
+            result = [];
+            for i = 1:length(sortIdx)
+                result(i) = epochs(sortIdx(i)); %#ok<AGROW>
+            end
+        end
+        
         function testEpochStartAndEndTimeShouldBeDeterminedByDataPixxTime(self)
             import ovation.*;
+            warning('off')
             fileStruct = load(self.pdsFile, '-mat');
+            warning('on')
             pds = fileStruct.PDS;
             
-            epochs = asarray(self.epochGroup.getEpochs());
+            epochs = self.sortEpochs(asarray(self.epochGroup.getEpochs()));
             
             datapixxmin = min(pds.datapixxstarttime);
             pdsIdx = 1;
             for i = 1:length(epochs)
-                epoch = epochs(pdsIdx);
-                if(~isempty(strfind(char(epoch.getProtocol().getName()), 'intertrial')))
-                    assertJavaEqual(epoch.getStart(),...
-                        self.epochGroup.getStart().plusMillis(1000*(pds.datapixxstoptime(pdsIdx-1) - datapixxmin)));
-                    assertJavaEqual(epoch.getEnd(),...
-                        self.epochGroup.getStart().plusMillis(1000*(pds.datapixxstarttime(pdsIdx) - datapixxmin)));
+                epoch = epochs(sortIdx(pdsIdx));
+                if(~isempty(strfind(char(epoch.getProtocol().getName()), 'Intertrial')))
+                    if(pdsIdx > 1)
+                        assertJavaEqual(epoch.getStart(),...
+                            self.epochGroup.getStart().plusMillis(1000*(pds.datapixxstoptime(pdsIdx-1) - datapixxmin)));
+                        assertJavaEqual(epoch.getEnd(),...
+                            self.epochGroup.getStart().plusMillis(1000*(pds.datapixxstarttime(pdsIdx) - datapixxmin)));
+                    end
                 else
                     assertJavaEqual(epoch.getStart(),...
                         self.epochGroup.getStart.plusMillis(1000*(pds.datapixxstarttime(pdsIdx) - datapixxmin)));
@@ -183,7 +202,7 @@ classdef TestPDSImport < TestPldapsBase
             epochs = asarray(self.epochGroup.getEpochs());
             for n=1:length(epochs)
                 self.assertTrue(epochs(n).getProtocol().getName().equals(java.lang.String(self.trialFunctionName)) ||...
-                strcmp(char(epochs(n).getProtocol().getName()), [self.trialFunctionName '.intertrial']));
+                ~isempty(strfind(char(epochs(n).getProtocol().getName()), 'Intertrial')));
             end
         end
         
@@ -200,12 +219,14 @@ classdef TestPDSImport < TestPldapsBase
         
         function testEpochShouldHaveProperties(self)
             import ovation.*;
+            warning('off')
             fileStruct = load(self.pdsFile, '-mat');
+            warning('on')
             pds = fileStruct.PDS;
             
              epochs = asarray(self.epochGroup.getEpochs());
             for n=1:length(epochs)
-                if(~isempty(strfind(epochs(n).getProtocol().getName(), 'intertrial')))
+                if(~isempty(strfind(epochs(n).getProtocol().getName(), 'Intertrial')))
                     continue;
                 end
                 
@@ -250,7 +271,9 @@ classdef TestPDSImport < TestPldapsBase
         function testEpochShouldHaveResponseDataFromPDS(self)
             import ovation.*
             
+            warning('off')
             fileStruct = load(self.pdsFile, '-mat');
+            warning('on')
             pds = fileStruct.PDS;
             
             
@@ -258,23 +281,23 @@ classdef TestPDSImport < TestPldapsBase
             eyeTrackingEpoch = 1;
             for i=1:length(epochs)
                 epoch = epochs(i);
-                if(~isempty(epoch.getMeasurement('eye_tracker')))
-                    assert(isempty(strfind(epoch.getProtocol().getName(), 'intertrial')));
-                    r = nm2data(epoch.getMeasurement('eye_tracker'));
-                    rData = reshape(r.getFloatingPointData(),...
-                        r.getShape()');
+                if(isempty(strfind(epoch.getProtocol().getName(), 'Intertrial')))
                     
+                    rData = nm2data(epoch.getMeasurement('Eye position'));
                     
-                    assertElementsAlmostEqual(pds.eyepos{eyeTrackingEpoch}(:,1:2), rData);
+                    self.verifyEqual(pds.eyepos{eyeTrackingEpoch}(:,1:2), rData);
                     
                     eyeTrackingEpoch = eyeTrackingEpoch + 1;
                 end
+                
             end
         end
         
         function testEpochProtocolParametersShouldHaveStimulusParameters(self)
             
+            warning('off')
             fileStruct = load(self.pdsFile, '-mat');
+            warning('on')
             dv = fileStruct.dv;
             
             % Convert DV paired cells to a struct
@@ -314,7 +337,9 @@ classdef TestPDSImport < TestPldapsBase
                 
         function testEpochGroupShouldHavePDSStartTime(self)
             import ovation.*;
+            warning('off')
             fileStruct = load(self.pdsFile, '-mat');
+            warning('on')
             pds = fileStruct.PDS;
             
             idx = find(pds.datapixxstarttime == min(pds.datapixxstarttime));
@@ -326,18 +351,6 @@ classdef TestPDSImport < TestPldapsBase
             assertJavaEqual(self.epochGroup.getStart(),...
                 startTime);
             
-        end
-        
-        function testEpochGroupShouldHavePDSEndTime(self)
-            import ovation.*;
-            
-            fileStruct = load(self.pdsFile, '-mat');
-            pds = fileStruct.PDS;
-            
-            totalDurationSeconds = max(pds.datapixxstoptime) - min(pds.datapixxstarttime);
-            
-            assertJavaEqual(self.epochGroup.getEnd(),...
-                self.epochGroup.getStart().plusMillis(1000*totalDurationSeconds));
         end
     end
 end
