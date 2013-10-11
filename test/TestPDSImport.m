@@ -285,7 +285,9 @@ classdef TestPDSImport < TestPldapsBase
                     
                     rData = nm2data(epoch.getMeasurement('Eye position'));
                     
-                    self.verifyEqual(pds.eyepos{eyeTrackingEpoch}(:,1:2), rData);
+                    self.verifyEqual(pds.eyepos{eyeTrackingEpoch}(:,1), rData.position_x);
+                    self.verifyEqual(pds.eyepos{eyeTrackingEpoch}(:,2), rData.position_y);
+                    self.verifyEqual(pds.eyepos{eyeTrackingEpoch}(:,3), rData.time);
                     
                     eyeTrackingEpoch = eyeTrackingEpoch + 1;
                 end
