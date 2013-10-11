@@ -105,8 +105,8 @@ function insertEpochs(epochGroup, protocol, animalSource, interTrialProtocol, pd
     previousEpoch = [];
     tic;
     for n=1:ntrials
-        nTrialProgress = 5;
-        if(mod(n,nTrialProgress) == 0)
+        nTrialProgress = 1;
+        if(mod(n,nTrialProgress) == 0 && n > 1)
             elapsedTime = toc;
             
             disp(['    ' num2str(n) ' of ' num2str(ntrials) ' (' num2str(elapsedTime/nTrialProgress) ' s/epoch)...']);
@@ -154,6 +154,7 @@ function insertEpochs(epochGroup, protocol, animalSource, interTrialProtocol, pd
                     struct2map(protocol_parameters),...
                     struct2map(deviceParameters)); %TODO deviceParameters do not match EquipmentSetup
                 
+                
                 interEpoch.addProperty('dataPixxStart_seconds', interEpochDataPixxStart);
                 interEpoch.addProperty('dataPixxStop_seconds', interEpochDataPixxStop);
                 
@@ -168,8 +169,6 @@ function insertEpochs(epochGroup, protocol, animalSource, interTrialProtocol, pd
             end
         end
         
-        
-
         
         epoch = epochGroup.insertEpoch(sources,...
             [],... % No output sources
