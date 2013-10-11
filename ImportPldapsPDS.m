@@ -36,7 +36,7 @@ function epochGroup = ImportPldapsPDS(container,...
     pds = pdsFileStruct.PDS;
     displayVariables = pdsFileStruct.dv;
     
-    [~, trialFunction, ~] = fileparts(pdsfile);
+    [~, trialFunction, pdsExt] = fileparts(pdsfile);
     
     
     % External devices
@@ -91,6 +91,10 @@ function epochGroup = ImportPldapsPDS(container,...
         pds,...
         displayVariables,...
         ntrials);
+    
+    epochGroup.addResource([trialFunction '.' pdsExt],...
+        java.io.File(pdsfile).toURI().toURL(),...
+        'application/x-pldaps');
     
 end
 
@@ -158,9 +162,6 @@ function insertEpochs(epochGroup, protocol, animalSource, interTrialProtocol, pd
                 interEpoch.addProperty('dataPixxStart_seconds', interEpochDataPixxStart);
                 interEpoch.addProperty('dataPixxStop_seconds', interEpochDataPixxStop);
                 
-                if(epoch.getProtocolParameters().size() == 0)
-                    disp('Crap!');
-                end
                 %if(~isempty(previousEpoch))
                 %    interEpoch.setPreviousEpoch(previousEpoch);
                 %end
@@ -186,10 +187,6 @@ function insertEpochs(epochGroup, protocol, animalSource, interTrialProtocol, pd
         
         epoch.addProperty('goodTrial', pds.goodtrial(n)); %TODO is this a measurement?
         
-        if(epoch.getProtocolParameters().size() == 0)
-                    disp('Crap!');
-        end
-                
         % Next/Prev Epoch not supported in Ovation 2.0 yet
         if(~isempty(previousEpoch))
             epoch.addProperty('previousEpoch', previousEpoch.getURI());
@@ -223,6 +220,7 @@ function insertEpochs(epochGroup, protocol, animalSource, interTrialProtocol, pd
         addTimelineAnnotations(epoch, pds, n);
         
     end
+    disp('Done');
 end
 
 function addTimelineAnnotations(epoch, pds, n)

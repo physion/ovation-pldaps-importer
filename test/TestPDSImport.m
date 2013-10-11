@@ -95,10 +95,10 @@ classdef TestPDSImport < TestPldapsBase
                     end
                     if(isjava(dvMap.get(key)))
                         assertJavaEqual(dvMap.get(key),...
-                            epoch.getProtocolParameters.get(key));
+                            epoch.getDeviceParameters.get(key));
                     else
                         self.assertEqual(dvMap.get(key),...
-                            epoch.getProtocolParameters().get(key));
+                            epoch.getDeviceParameters().get(key));
                     end
                 end
             end
