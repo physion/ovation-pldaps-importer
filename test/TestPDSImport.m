@@ -82,6 +82,8 @@ classdef TestPDSImport < TestPldapsBase
                 num2cell(strcat('bit_', num2str(cell2mat(dv.bits(:,1)))), 2)',...
                 2);
             
+            dv = rmfield(dv, 'params');
+            
             dvMap = ovation.struct2map(dv);
             epochsItr = self.epochGroup.getEpochs().iterator();
             while(epochsItr.hasNext())
@@ -96,7 +98,7 @@ classdef TestPDSImport < TestPldapsBase
                         assertJavaEqual(dvMap.get(key),...
                             epoch.getDeviceParameters.get(key));
                     else
-                        self.assertEqual(dvMap.get(key),...
+                        self.verifyEqual(dvMap.get(key),...
                             epoch.getDeviceParameters().get(key));
                     end
                 end
@@ -112,12 +114,12 @@ classdef TestPDSImport < TestPldapsBase
             pds = fileStruct.PDS;
             
             
-            epochs = asarray(self.epochGroup.getEpochs());
+            epochs = sort_epochs(asarray(self.epochGroup.getEpochs()));
             
             i = 1;
             for e = 1:length(epochs)
-                epoch = epochs(e);
-                if(isempty(strfind(epoch.getProtocol().getName(), 'Intertrial')))
+                epoch = epochs{e};
+                if(isempty(strfind(char(epoch.getProtocol().getName()), 'Intertrial')))
                     self.verifyEqual(pds.targ1XY(i),...
                         epoch.getProtocolParameters.get('target1_XY_deg_visual_angle'));
                     if(isfield(pds, 'targ2XY'))
@@ -154,19 +156,6 @@ classdef TestPDSImport < TestPldapsBase
             end
         end
                
-        function result = sortEpochs(epochs)
-            startMillis = zeros(size(epochs));
-            for i = 1:length(epochs)
-                startMillis = epochs(i).getStart().getMillis();
-            end
-            [epochs, sortIdx] = sort(startMillis);
-            
-            result = [];
-            for i = 1:length(sortIdx)
-                result(i) = epochs(sortIdx(i)); %#ok<AGROW>
-            end
-        end
-        
         function testEpochStartAndEndTimeShouldBeDeterminedByDataPixxTime(self)
             import ovation.*;
             warning('off')
@@ -174,12 +163,12 @@ classdef TestPDSImport < TestPldapsBase
             warning('on')
             pds = fileStruct.PDS;
             
-            epochs = self.sortEpochs(asarray(self.epochGroup.getEpochs()));
+            epochs = sort_epochs(asarray(self.epochGroup.getEpochs()));
             
             datapixxmin = min(pds.datapixxstarttime);
             pdsIdx = 1;
             for i = 1:length(epochs)
-                epoch = epochs(sortIdx(pdsIdx));
+                epoch = epochs{pdsIdx};
                 if(~isempty(strfind(char(epoch.getProtocol().getName()), 'Intertrial')))
                     if(pdsIdx > 1)
                         assertJavaEqual(epoch.getStart(),...
@@ -224,13 +213,14 @@ classdef TestPDSImport < TestPldapsBase
             warning('on')
             pds = fileStruct.PDS;
             
-             epochs = asarray(self.epochGroup.getEpochs());
+             epochs = sort_epochs(asarray(self.epochGroup.getEpochs()));
             for n=1:length(epochs)
-                if(~isempty(strfind(epochs(n).getProtocol().getName(), 'Intertrial')))
+                epoch = epochs{n};
+                if(~isempty(strfind(epoch.getProtocol().getName(), 'Intertrial')))
                     continue;
                 end
                 
-                props = epochs(n).getUserProperties(epochs(n).getOwner());
+                props = epoch.getUserProperties(epoch.getOwner());
                 self.assertTrue(props.containsKey('dataPixxStart_seconds'));
                 self.assertTrue(props.containsKey('dataPixxStop_seconds'));
                 self.assertTrue(props.containsKey('uniqueNumber'));
@@ -254,7 +244,7 @@ classdef TestPDSImport < TestPldapsBase
                 end
                 if(isfield(pds,'correct'))
                     if(pds.correct(n))
-                        tags = epochs(n).getTags;
+                        tags = epoch.getTags();
                         found = false;
                         for t = 1:lenth(tags);
                             if(strcmp(char(tags(t)), 'correct'))
@@ -283,7 +273,7 @@ classdef TestPDSImport < TestPldapsBase
                 epoch = epochs(i);
                 if(isempty(strfind(epoch.getProtocol().getName(), 'Intertrial')))
                     
-                    rData = nm2data(epoch.getMeasurement('Eye position'));
+                    rData = asnumeric(epoch.getMeasurement('Eye position'));
                     
                     self.verifyEqual(pds.eyepos{eyeTrackingEpoch}(:,1), rData.position_x);
                     self.verifyEqual(pds.eyepos{eyeTrackingEpoch}(:,2), rData.position_y);

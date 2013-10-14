@@ -115,20 +115,6 @@ function insertEpochs(epochGroup, protocol, animalSource, interTrialProtocol, pd
     previousEpoch = [];
     tic;
     for n=1:ntrials
-        nTrialProgress = 1;
-        if(mod(n,nTrialProgress) == 0)
-            elapsedTime = toc;
-            
-            if(n == 1)
-                msg = ['    ' num2str(n) ' of ' num2str(ntrials)];
-            else
-                msg = ['    ' num2str(n) ' of ' num2str(ntrials) ' (' num2str(elapsedTime/nTrialProgress) ' s/epoch)...'];
-            end
-            
-            disp(msg);
-            tic();
-        end
-        
         
         dataPixxZero = min(pds.datapixxstarttime);
         dataPixxStart = pds.datapixxstarttime(n) - dataPixxZero;
@@ -151,7 +137,7 @@ function insertEpochs(epochGroup, protocol, animalSource, interTrialProtocol, pd
             protocol_parameters.inReceptiveField = pds.inRF(n);
         end
         
-        deviceParameters = rmfield(parameters, 'params');
+        deviceParameters = rmfield(parameters, 'params'); % TODO: should params be removed for device parameters?
         sources = java.util.HashMap();
         sources.put('monkey', animalSource);
         
@@ -238,6 +224,13 @@ function insertEpochs(epochGroup, protocol, animalSource, interTrialProtocol, pd
         
         addTimelineAnnotations(epoch, pds, n);
         
+        nTrialProgress = 1;
+        if(mod(n,nTrialProgress) == 0)
+            elapsedTime = toc;
+            msg = ['    ' num2str(n) ' of ' num2str(ntrials) ' (' num2str(elapsedTime/nTrialProgress) ' s/epoch)...'];
+            disp(msg);
+            tic();
+        end
     end
     disp('Done');
 end

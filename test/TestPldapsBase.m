@@ -19,7 +19,7 @@ classdef TestPldapsBase < ovation.test.ClassFixtureTestCase
         
         timezone = org.joda.time.DateTimeZone.forID('US/Central');
         
-        nTrials = 10;
+        nTrials = 3;
     end
     
     properties 
@@ -58,9 +58,10 @@ classdef TestPldapsBase < ovation.test.ClassFixtureTestCase
                 self.nTrials);
             toc;
             
-            
-            pdsStruct = load(self.pdsFile, '-mat');
-            dv = pdsStruct.dv;
+%             warning('off'); %#ok<*WNOFF>
+%             pdsStruct = load(self.pdsFile, '-mat');
+%             warning('on'); %#ok<*WNON>
+%             dv = pdsStruct.dv;
             
 %             tic;
 %             ImportPLX(self.epochGroup,...
