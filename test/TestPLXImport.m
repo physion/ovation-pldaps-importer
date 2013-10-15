@@ -52,7 +52,7 @@ classdef TestPLXImport < TestPldapsBase
             self.epochCache = cache;
         end
         
-        function assertFileResource(~, target, name)
+        function assertFileResource(self, target, name)
             import ovation.*;
             
             [~,name,ext]=fileparts(name);
@@ -100,6 +100,7 @@ classdef TestPLXImport < TestPldapsBase
         
         function testFindsMatchingEpochFromUniqueNumber(self)
             import ovation.*;
+            import matlab.unittest.constraints.*;
             
             for i = 1:size(self.plx.unique_number, 1)
                 unum = self.plx.unique_number(i,:);
@@ -113,7 +114,7 @@ classdef TestPLXImport < TestPldapsBase
                 for j = 1:length(uNum)
                     uNum(j) = epochUnum.get(j-1);
                 end
-                self.verifyEquals(mod(uNum, 256), unum);
+                self.verifyThat(mod(uNum, 256), IsEqualTo(unum));
             end
         end
         
