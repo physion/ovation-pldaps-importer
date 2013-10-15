@@ -60,7 +60,7 @@ classdef TestPLXImport < TestPldapsBase
             names = asarray(target.getResourceNames());
             found = false;
             for i = 1:length(names)
-                if(names(i).equals(name))
+                if(strcmp(names(i), name))
                     found = true;
                     break;
                 end
@@ -86,7 +86,7 @@ classdef TestPLXImport < TestPldapsBase
             self.assertFileResource(self.epochGroup, self.plxExpFile);
         end
         
-        function testFindEpochGivesNullForNullEpochGroup(~)
+        function testFindEpochGivesNullForNullEpochGroup(self)
             import matlab.unittest.constraints.*; 
             self.assertThat(findEpochByUniqueNumber([], [1,2]),...
                 IsEmpty());
@@ -99,6 +99,7 @@ classdef TestPLXImport < TestPldapsBase
         end
         
         function testFindsMatchingEpochFromUniqueNumber(self)
+            import ovation.*;
             
             for i = 1:size(self.plx.unique_number, 1)
                 unum = self.plx.unique_number(i,:);
@@ -107,22 +108,26 @@ classdef TestPLXImport < TestPldapsBase
                 if(isempty(epoch))
                     continue;
                 end
-                epochUnum = epoch.getOwnerProperty('uniqueNumber').getIntegerData()';
-                self.verifyEquals(mod(epochUnum, 256), unum);
+                epochUnum = epoch.getUserProperty(epoch.getOwner(), 'uniqueNumber');
+                uNum = zeros(1, epochUnum.size());
+                for j = 1:length(uNum)
+                    uNum(j) = epochUnum.get(j-1);
+                end
+                self.verifyEquals(mod(uNum, 256), unum);
             end
         end
         
         function testImportsExpectedNumberOfEpochs(self)
+            import ovation.*;
             expected = size(self.plx.unique_number,1)*2 - 1;
             actual = 0;
-            itr = self.epochGroup.getEpochsIterable().iterator();
+            itr = self.epochGroup.getEpochs().iterator();
             while(itr.hasNext())
-                drNames = itr.next().getDerivedResponseNames();
-                if(length(drNames) < 2)
-                    continue;
-                end
-                for i = 1:length(drNames)
-                    if(~isempty(strfind(drNames(i), 'spikeTimes_')))
+                epoch = itr.next();
+                analysisRecords = asarray(epoch.getAnalysisRecords(epoch.getOwner()));
+                
+                for i = 1:length(analysisRecords)
+                    if(~isempty(strfind(char(analysisRecords(i).getName()), 'channel_')))
                         actual = actual + 1;
                         break;
                     end
@@ -162,7 +167,7 @@ classdef TestPLXImport < TestPldapsBase
                         end
                         
                         % assume there's only one DR
-                        drName = ['spikeTimes_channel_' num2str(c-1)...
+                        drName = ['channel_' num2str(c-1)...
                             '_unit_' num2str(u-1) '-'...
                             self.drNameSuffix '-1'];
                         

@@ -90,10 +90,7 @@ function ImportPLX(epochGroup, plxFile, bits, plxRawFile, expFile, protocol, var
     
     tic;
     for i = 1:length(plx.unique_number)
-        if(mod(i,5) == 0)
-            disp(['    Epoch ' num2str(i) ' of ' num2str(length(plx.unique_number)) ' (' num2str(toc()/5) ' s/epoch)']);
-            tic();
-        end
+        
         
         % Find epoch
         epoch = findEpochByUniqueNumber(epochGroup,...
@@ -145,7 +142,11 @@ function ImportPLX(epochGroup, plxFile, bits, plxRawFile, expFile, protocol, var
             insertEvents(next, plx, bitsMap, start_time, end_time, drSuffix);
         end
         
-        
+        nTrialProgress = 1;
+        if(mod(i,nTrialProgress) == 0)
+            disp(['    Epoch ' num2str(i) ' of ' num2str(length(plx.unique_number)) ' (' num2str(toc()/5) ' s/epoch)']);
+            tic();
+        end
     end
     
     disp('Attaching .plx file...');
