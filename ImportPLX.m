@@ -1,4 +1,4 @@
-function ImportPLX(epochGroup, plxFile, bits, plxRawFile, expFile, varargin)
+function ImportPLX(epochGroup, plxFile, bits, plxRawFile, expFile, protocol, varargin)
     % Import Plexon data into an existing PL-DA-PS PDS EpochGroup
     %
     %    ImportPLX(epochGroup, plxFile, plxRawFile, expFile)
@@ -13,6 +13,10 @@ function ImportPLX(epochGroup, plxFile, bits, plxRawFile, expFile, varargin)
     %      digital bit to event name.
     %
     %      plxRawFile: Path to .plx file from which plxFile was generated.
+    %    
+    %      expFile
+    %
+    %      prtocol: us.physion.ovation.domain.Protocol
     
     narginchk(5, 6);
     
@@ -33,28 +37,31 @@ function ImportPLX(epochGroup, plxFile, bits, plxRawFile, expFile, varargin)
     for i = 2:length(lines)
         expTxt = sprintf('%s\n%s', expTxt, lines{i});
     end
-    derivationParameters.expFileContents = expTxt;
+    analysisParameters.expFileContents = expTxt;
     
-    derivationParameters = struct2map(derivationParameters);
+    analysisParameters = struct2map(analysisParameters);
     
     disp('Calculating PLX-PDS unique number mapping...');
     epochCache.uniqueNumber = java.util.HashMap();
     epochCache.truncatedUniqueNumber = java.util.HashMap();
-    epochs = epochGroup.getEpochsUnsorted();
+    epochs = asarray(epochGroup.getEpochs());
     for i = 1:length(epochs)
         if(mod(i,5) == 0)
             disp(['    Epoch ' num2str(i) ' of ' num2str(length(epochs))]);
         end
         
         epoch = epochs(i);
-        epochUniqueNumber = epoch.getOwnerProperty('uniqueNumber');
+        epochUniqueNumber = epoch.getUserProperty(epoch.getOwner(), 'uniqueNumber');
         if(~isempty(epochUniqueNumber))
-            epochUniqueNumber = epochUniqueNumber.getIntegerData()';
+            uNum = zeros(1, epochUniqueNumber.size());
+            for j = 1:length(uNum)
+                uNum(j) = epochUniqueNumber.get(j-1);
+            end
+            
+            epochCache.uniqueNumber.put(num2str(uNum), epoch);
+            epochCache.truncatedUniqueNumber.put(num2str(mod(uNum,256)),...
+                epoch);
         end
-        
-        epochCache.uniqueNumber.put(num2str(epochUniqueNumber), epoch);
-        epochCache.truncatedUniqueNumber.put(num2str(mod(epochUniqueNumber,256)),...
-            epoch);
     end
     
     % Create a bit => event name map
@@ -77,8 +84,8 @@ function ImportPLX(epochGroup, plxFile, bits, plxRawFile, expFile, varargin)
             'Bit 7 events do not form Epoch boundary pairs');
     end
     if(abs(numel(end_times) - size(plx.unique_number, 1)) > 1)
-        error('ovation:import:plx:epoch_boundary',...
-            'Epoch boundary events and unique_number values are not paired');
+        warning('ovation:import:plx:epoch_boundary',...
+            'SHOULD BE ERROR: Epoch boundary events and unique_number values are not paired');
     end
     
     tic;
@@ -103,20 +110,21 @@ function ImportPLX(epochGroup, plxFile, bits, plxRawFile, expFile, varargin)
         % Add Epoch spike times and waveforms
         start_time = start_times(i);
         end_time = end_times(i);
-        insertSpikeDerivedResponses(epoch,...
+        insertSpikeAnalysisRecord(epoch,...
             plx,...
             start_time,...
             end_time,...
-            derivationParameters,...
-            drSuffix);
+            analysisParameters,...
+            drSuffix,...
+            protocol);
         
         % Add bit events to Epoch
         insertEvents(epoch, plx, bitsMap, start_time, end_time, drSuffix);
         
         % Inter-epoch spikes are end_time to next strobe_time (if present)
         % else end
-        if(~isempty(epoch.getNextEpoch()))
-            next = epoch.getNextEpoch();
+        if(~isempty(next_epoch(epoch)))
+            next = next_epoch(epoch);
             if(strfind(next.getProtocolID(), 'intertrial'))
                 if(i == length(start_times))
                     inter_trial_end = [];
@@ -124,12 +132,13 @@ function ImportPLX(epochGroup, plxFile, bits, plxRawFile, expFile, varargin)
                     inter_trial_end = start_times(i+1);
                 end
                 
-                insertSpikeDerivedResponses(next,...
+                insertSpikeAnalysisRecord(next,...
                     plx,...
                     end_time,...
                     inter_trial_end,...
-                    derivationParameters,...
-                    drSuffix);
+                    analysisParameters,...
+                    drSuffix,...
+                    protocol);
             end
             
             % Add bit events to inter-trial Epoch
@@ -140,10 +149,19 @@ function ImportPLX(epochGroup, plxFile, bits, plxRawFile, expFile, varargin)
     end
     
     disp('Attaching .plx file...');
-    epochGroup.addResource('com.plexon.plx', plxRawFile);
+    f = java.io.File(plxRawFile);
+    if(~f.isAbsolute())
+        f = java.io.File(fullfile(pwd(), plxRawFile));
+    end
+    
+    epochGroup.addResource('Plexon PLX', f.toURI().toURL(), 'application/x-plexon-plx');
     
     disp('Attaching .exp file...');
-    epochGroup.addResource('com.plexon.exp', expFile);
+    f = java.io.File(expFile);
+    if(~f.isAbsolute())
+        f = java.io.File(fullfile(pwd(), expFile));
+    end
+    epochGroup.addResource('Plexon EXP', f.toURI().toURL(), 'application/x-plexon-exp');
 end
 
 function insertEvents(epoch, plx, bitsMap, start_time, end_time, drSuffix)
@@ -166,12 +184,12 @@ function insertEvents(epoch, plx, bitsMap, start_time, end_time, drSuffix)
         for e = 1:length(epochEventTimestamps)
             epoch.addTimelineAnnotation([char(bitsMap.get(bitNumber)) '-' drSuffix],...
                 bitsMap.get(bitNumber),...
-                epoch.getStartTime().plusMillis(1000 * epochEventTimestamps(e)));
+                epoch.getStart().plusMillis(1000 * epochEventTimestamps(e)));
         end
     end
 end
 
-function insertSpikeDerivedResponses(epoch, plx, start_time, end_time, derivationParameters, drSuffix)
+function insertSpikeAnalysisRecord(epoch, plx, start_time, end_time, derivationParameters, drSuffix, protocol)
     import ovation.*
     
     [maxChannels,maxUnits] = size(plx.wave_ts);
@@ -196,13 +214,13 @@ function insertSpikeDerivedResponses(epoch, plx, start_time, end_time, derivatio
             
             
             % Insert spike times
-            derivedResponseName = ['spikeTimes_channel_' ...
+            derivedResponseName = ['channel_' ...
                 num2str(c-1) '_unit_' num2str(u-1)];
             
             j = 1;
             drNameCandidate = [derivedResponseName '-' ...
                 drSuffix '-' num2str(j)];
-            while(~isempty(epoch.getMyDerivedResponse(drNameCandidate)))
+            while(has_analysis_record(epoch, drNameCandidate))
                 j = j+1;
                 drNameCandidate = [derivedResponseName '-'...
                     drSuffix '-' num2str(j)];
@@ -210,46 +228,66 @@ function insertSpikeDerivedResponses(epoch, plx, start_time, end_time, derivatio
             
             derivedResponseName = drNameCandidate;
             
+            
+            analysisRecord = epoch.addAnalysisRecord(derivedResponseName,...
+                namedMap(epoch.getMeasurements(), false),...
+                protocol,...
+                derivationParameters);
+            
+            % Spike times
             if(~isempty(spike_times))
-                epoch.insertDerivedResponse(derivedResponseName,...
-                    NumericData(spike_times'),...
-                    's',... %times in seconds
-                    derivationParameters,...
-                    {'time from epoch start'}...
-                    );
+                nd = us.physion.ovation.values.NumericData();
+                nd.addData('spike_time_from_epoch_start',...
+                    spike_times,...
+                    's',...
+                    0,...
+                    'n/a');
+                
+                analysisRecord.addNumericOutput('spike times',...
+                    nd);
             end
             
             
-            % Insert spike wave forms
-            derivedResponseName = ['spikeWaveforms_channel_'...
-                num2str(c-1) '_unit_' num2str(u-1)];
-            
+            % Spike waveforms
             waveformData = plx.spike_waves{c,u}(spike_idx,:);
             
             if(~isempty(waveformData))
-                data = NumericData(reshape(waveformData, 1, ...
-                    numel(waveformData)),...
-                    size(waveformData));
+                samplingRate = 1; % TODO: sampling rate?
                 
-                j = 1;
-                drNameCandidate = [derivedResponseName '-' ...
-                    drSuffix '-' num2str(j)];
-                while(~isempty(epoch.getMyDerivedResponse(drNameCandidate)))
-                    j = j+1;
-                    drNameCandidate = [derivedResponseName '-'...
-                        drSuffix '-' num2str(j)];
-                end
+                nd = us.physion.ovation.values.NumericData();
+                nd.addData('spike_waveforms',...
+                    waveformData,...
+                    {'spikes','waveform'},...
+                    'mV',...
+                    [0, samplingRate],...
+                    {'n/a', 'Hz'});
                 
-                derivedResponseName = drNameCandidate;
-                
-                epoch.insertDerivedResponse(derivedResponseName,...
-                    data,...
-                    'mV',... % TODO confirm units
-                    derivationParameters,...
-                    {'spikes','waveform'}... % TODO dimension labels?
-                    );
+                analysisRecord.addNumericOutput('spike waveforms',...
+                    nd);
             end
             
         end
+    end
+end
+
+function result = has_analysis_record(epoch, recordName)
+    import ovation.*;
+    
+    result = false;
+    analysisRecords = asarray(epoch.getAnalysisRecords(epoch.getOwner()));
+    for i = 1:length(analysisRecords)
+        if(analysisRecords(i).getName().equals(recordName))
+            result = true;
+            return;
+        end
+    end
+end
+
+function n = next_epoch(epoch)
+    nextUri = epoch.getUserProperty(epoch.getOwner(), 'nextEpoch');
+    if(~isempty(nextUri))
+        n = epoch.getDataContext().getObjectWithURI(nextUri);
+    else
+        n = [];
     end
 end

@@ -38,14 +38,13 @@ classdef TestPDSImport < TestPldapsBase
 
         
         function testEpochsShouldHaveNextPrevLinks(self)
-            self.assumeTrue(false, 'Not implemented');
             
             import ovation.*
             
             epochs = asarray(self.epochGroup.getEpochs());
             
             for i = 2:length(epochs)
-                prev = self.context.getObjectWithURI(epochs(i).getProperty(epochs(i).getOwner(), 'previousEpoch'));
+                prev = self.context.getObjectWithURI(epochs(i).getJserProperty(epochs(i).getOwner(), 'previousEpoch'));
                 self.assertNotEmpty(prev);
                 if(strfind(char(epochs(i).getProtocol().getName()), 'Intertrial'))
                     self.verifyEmpty(strfind(prev.getProtocol().getName(),'Intertrial'));

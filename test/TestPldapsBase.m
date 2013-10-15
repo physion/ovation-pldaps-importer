@@ -58,18 +58,20 @@ classdef TestPldapsBase < ovation.test.ClassFixtureTestCase
                 self.nTrials);
             toc;
             
-%             warning('off'); %#ok<*WNOFF>
-%             pdsStruct = load(self.pdsFile, '-mat');
-%             warning('on'); %#ok<*WNON>
-%             dv = pdsStruct.dv;
+            warning('off'); %#ok<*WNOFF>
+            pdsStruct = load(self.pdsFile, '-mat');
+            warning('on'); %#ok<*WNON>
+            dv = pdsStruct.dv;
             
-%             tic;
-%             ImportPLX(self.epochGroup,...
-%                 self.plxFile,...
-%                 dv.bits,...
-%                 self.plxRawFile,...
-%                 self.plxExpFile);
-%             toc;
+            protocol = ctx.insertProtocol('Plexon Spike Sorting', '...');
+            tic;
+            ImportPLX(self.epochGroup,...
+                self.plxFile,...
+                dv.bits,...
+                self.plxRawFile,...
+                self.plxExpFile,...
+                protocol);
+            toc;
             
             
         end

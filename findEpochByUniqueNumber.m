@@ -1,6 +1,6 @@
 function epoch = findEpochByUniqueNumber(epochGroup, uniqueNumber, varargin)
-    % EntityBase.getProperty is slow. Until we can pull just getOwner()'s
-    % properties, we do some caching and hinting to speed up this search.
+    
+    import ovation.*
     
     if(nargin >= 3)
         uniqueNumberCache = varargin{1};
@@ -24,30 +24,29 @@ function epoch = findEpochByUniqueNumber(epochGroup, uniqueNumber, varargin)
         end
     end
     
-    epochs = epochGroup.getEpochs();
+    epochs = asarray(epochGroup.getEpochs());
     
     for i = 1:length(epochs)
         epoch = epochs(i);
         
-        % TODO this should use getProperty(getOwner)
-        vals = epoch.getProperty('uniqueNumber');
-        assert(length(vals) <= 1);
-        if(isempty(vals))
-            continue;
+        epochUniqueNumber = epoch.getUserProperty(epoch.getOwner(), 'uniqueNumber');
+        if(~isempty(epochUniqueNumber))
+            uNum = zeros(1, epochUniqueNumber.size());
+            for j = 1:length(uNum)
+                uNum(j) = epochUniqueNumber.get(j-1);
+            end
+            
+            if(all(uNum == uniqueNumber))
+                uniqueNumberCache.put(num2str(uNum), epoch);
+                return;
+            end
+            
+            if(all(mod(uNum,256) == uniqueNumber))
+                warning('ovation:import:plx:unique_number', 'uniqueNumber appears to be 8-bit truncated');
+                return;
+            end
         end
         
-        epochUniqueNumber = vals(1).getIntegerData()';
-        
-        
-        if(all(epochUniqueNumber == uniqueNumber))
-            uniqueNumberCache.put(uniqueNumber, epoch);
-            return;
-        end
-        
-        if(all(mod(epochUniqueNumber,256) == uniqueNumber))
-            warning('ovation:import:plx:unique_number', 'uniqueNumber appears to be 8-bit truncated');
-            return;
-        end
     end
     
     epoch = [];
