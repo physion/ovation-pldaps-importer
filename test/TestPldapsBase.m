@@ -19,7 +19,7 @@ classdef TestPldapsBase < ovation.test.ClassFixtureTestCase
         
         timezone = org.joda.time.DateTimeZone.forID('US/Central');
         
-        nTrials = 3;
+        nTrials = 5;
     end
     
     properties 

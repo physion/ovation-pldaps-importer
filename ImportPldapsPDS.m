@@ -102,6 +102,12 @@ function epochGroup = ImportPldapsPDS(container,...
         'application/x-pldaps',...
         [pdsFileName pdsExt]);
     
+    
+    fs = container.getDataContext().getFileService();
+    while(fs.hasPendingUploads())
+        disp('Waiting for pending uploads to complete...');
+        fs.waitForPendingUploads(10, java.util.concurrent.TimeUnit.SECONDS);
+    end
 end
 
 function insertEpochs(epochGroup, protocol, animalSource, interTrialProtocol, pds, parameters, ntrials)
