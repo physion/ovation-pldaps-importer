@@ -20,7 +20,7 @@ classdef TestPLXImport < TestPldapsBase
         
         function localFixture(self)
             localFixture@TestPldapsBase(self);
-           
+            
             import ovation.*;
             
             plxStruct = load(self.plxFile);
@@ -87,7 +87,7 @@ classdef TestPLXImport < TestPldapsBase
         end
         
         function testFindEpochGivesNullForNullEpochGroup(self)
-            import matlab.unittest.constraints.*; 
+            import matlab.unittest.constraints.*;
             self.assertThat(findEpochByUniqueNumber([], [1,2]),...
                 IsEmpty());
         end
@@ -141,6 +141,9 @@ classdef TestPLXImport < TestPldapsBase
         function testShouldAssignSpikeTimesToSpanningEpoch(self)
             % Spikes in plx.wave_ts should be assigned to the Epoch in which they occurred
             
+            import ovation.*;
+            import matlab.unittest.constraints.*;
+            
             [maxChannels,maxUnits] = size(self.plx.wave_ts);
             
             start_times = self.plx.ts{7}(1:2:end);
@@ -167,43 +170,39 @@ classdef TestPLXImport < TestPldapsBase
                             interEpochSpikeTimes = [];
                         end
                         
-                        % assume there's only one DR
-                        drName = ['channel_' num2str(c-1)...
-                            '_unit_' num2str(u-1) '-'...
-                            self.drNameSuffix '-1'];
+                        analysisRecords = asarray(epoch.getAnalysisRecords(epoch.getOwner()));
                         
-                        derivedResponses = epoch.getDerivedResponses(drName);
+                        self.verifyThat(isempty(analysisRecords), IsEqualTo(isempty(epochSpikeTimes)));
                         
-                        assert(isempty(derivedResponses) == isempty(epochSpikeTimes));
-                        
-                        for d = 1:length(derivedResponses)
-                            dr = derivedResponses(d);
-                            actualSpikeTimes = dr.getFloatingPointData();
+                        for d = 1:length(analysisRecords)
+                            % assume there's only one DR
+                            record = analysisRecords(d);
+                            actualSpikeTimes = record.getOutputs().get('spike times');
+                            self.verifyThat(nm2data(actualSpikeTimes).spike_time_from_epoch_start,...
+                                IsEqualTo(epochSpikeTimes,...
+                                'Within',...
+                                AbsoluteTolerance(1e-6))); %nanosecond precision
                             
-                            assertElementsAlmostEqual(actualSpikeTimes, epochSpikeTimes,...
-                                'absolute',...
-                                1e-9); %nanosecond precision
-                            assertTrue(min(actualSpikeTimes) >= 0);
-                            assertTrue(max(actualSpikeTimes) < epoch.getDuration());
+                            
+                            self.verifyThat(min(actualSpikeTimes), IsGreaterThanOrEqualTo(0));
+                            self.verifyThat(max(actualSpikeTimes), IsLessThan(epoch.getDuration()));
                         end
                         
                         if(~isempty(interEpochSpikeTimes))
-                            interTrialEpoch = epoch.getNextEpoch();
+                            interTrialEpoch = self.context.getObjectWithURI(epoch.getUserProperty(epoch.getOwner(), 'nextEpoch'));
                             if(~isempty(interTrialEpoch))
-                                derivedResponses = interTrialEpoch.getDerivedResponses(drName);
+                                analysisRecords = asarray(interTrialEpoch.getAnalysisRecords(interTrialEpoch.getOwner()));
                                 
-                                assert(isempty(derivedResponses) == isempty(epochSpikeTimes));
-                                
-                                for d = 1:length(derivedResponses)
-                                    dr = derivedResponses(d);
-                                    actualSpikeTimes = dr.getFloatingPointData();
+                                for d = 1:length(analysisRecords)
+                                    record = analysisRecords(d);
+                                    actualSpikeTimes = record.getOutputs().get('spike times');
+                                    self.verifyThat(nm2data(actualSpikeTimes).spike_time_from_epoch_start,...
+                                        IsEqualTo(epochSpikeTimes,...
+                                        'Within',...
+                                        AbsoluteTolerance(1e-6))); %nanosecond precision
                                     
-                                    assertElementsAlmostEqual(actualSpikeTimes, interEpochSpikeTimes,...
-                                        'absolute',...
-                                        1e-6); %microsecond precision
-                                    assertTrue(min(actualSpikeTimes) >= 0);
-                                    
-                                    assertTrue(abs(max(actualSpikeTimes) - interTrialEpoch.getDuration()) < 0.001);
+                                    self.verifyThat(min(actualSpikeTimes), IsGreaterThanOrEqualTo(0));
+                                    self.verifyThat(max(actualSpikeTimes), IsLessThan(epoch.getEnd().minus(epoch.getStart()), 'Within', AbsoluteTolerance(0.001)));
                                 end
                             end
                         end

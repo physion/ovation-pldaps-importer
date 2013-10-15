@@ -296,15 +296,8 @@ classdef TestPDSImport < TestPldapsBase
                     if(isempty(parametersMap.get(key)))
                         continue;
                     end
-                    if(isjava(parametersMap.get(key)))
-                        assertJavaEqual(parametersMap.get(key),...
-                            epoch.getProtocolParameters().get(key));
-                        assertJavaEqual(parametersMap.get(key),...
-                            epoch.getDeviceParameters().get(key));
-                    else
-                        self.verifyThat(parametersMap.get(key), ...
-                            IsEqualTo(epoch.getProtocolParameters().get(key)));
-                    end
+                    self.verifyThat(parametersMap.get(key), ...
+                        IsEqualTo(epoch.getProtocolParameters().get(key)));
                 end
             end
             
