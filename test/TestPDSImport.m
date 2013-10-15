@@ -144,15 +144,14 @@ classdef TestPDSImport < TestPldapsBase
         end
         
         function testEpochsShouldBeSequentialInTime(self)
-            self.assumeTrue(false, 'Not implemented');
             
             import ovation.*;
             
-            epochs = asarray(self.epochGroup.getEpochs());
+            epochs = sort_epochs(asarray(self.epochGroup.getEpochs()));
             
             for i = 2:length(epochs)
-                assertJavaEqual(epochs(i).getPreviousEpoch(),...
-                    epochs(i-1));
+                self.verifyEqual(epochs{i}.getStart().getMillis(),...
+                    epochs{i-1}.getEnd().getMillis(), 'AbsTol', 500);
             end
         end
                
@@ -171,29 +170,21 @@ classdef TestPDSImport < TestPldapsBase
                 epoch = epochs{pdsIdx};
                 if(~isempty(strfind(char(epoch.getProtocol().getName()), 'Intertrial')))
                     if(pdsIdx > 1)
-                        assertJavaEqual(epoch.getStart(),...
+                        self.verifyEqual(epoch.getStart(),...
                             self.epochGroup.getStart().plusMillis(1000*(pds.datapixxstoptime(pdsIdx-1) - datapixxmin)));
-                        assertJavaEqual(epoch.getEnd(),...
+                        self.verifyEqual(epoch.getEnd(),...
                             self.epochGroup.getStart().plusMillis(1000*(pds.datapixxstarttime(pdsIdx) - datapixxmin)));
                     end
                 else
-                    assertJavaEqual(epoch.getStart(),...
+                    self.verifyEqual(epoch.getStart(),...
                         self.epochGroup.getStart.plusMillis(1000*(pds.datapixxstarttime(pdsIdx) - datapixxmin)));
-                    assertJavaEqual(epoch.getEnd(),...
+                    self.verifyEqual(epoch.getEnd(),...
                         self.epochGroup.getStart().plusMillis(1000*(pds.datapixxstoptime(pdsIdx) - datapixxmin)));
                     pdsIdx = pdsIdx + 1;
                 end
             end
         end
         
-        function testShouldUseTrialFunctionNameAsEpochProtocolID(self)
-            import ovation.*
-            epochs = asarray(self.epochGroup.getEpochs());
-            for n=1:length(epochs)
-                self.assertTrue(epochs(n).getProtocol().getName().equals(java.lang.String(self.trialFunctionName)) ||...
-                ~isempty(strfind(char(epochs(n).getProtocol().getName()), 'Intertrial')));
-            end
-        end
         
         function testShouldUseTrialFunctionNameAsEpochGroupLabel(self)
             
@@ -213,12 +204,15 @@ classdef TestPDSImport < TestPldapsBase
             warning('on')
             pds = fileStruct.PDS;
             
-             epochs = sort_epochs(asarray(self.epochGroup.getEpochs()));
+            epochs = sort_epochs(asarray(self.epochGroup.getEpochs()));
+            pdsIdx = 0;
             for n=1:length(epochs)
                 epoch = epochs{n};
                 if(~isempty(strfind(epoch.getProtocol().getName(), 'Intertrial')))
                     continue;
                 end
+                
+                pdsIdx = pdsIdx + 1;
                 
                 props = epoch.getUserProperties(epoch.getOwner());
                 self.assertTrue(props.containsKey('dataPixxStart_seconds'));
@@ -228,33 +222,25 @@ classdef TestPDSImport < TestPldapsBase
                 self.assertTrue(props.containsKey('trialNumber'));
                 self.assertTrue(props.containsKey('goodTrial'));
                 if(isfield(pds,'coherence'))
-                    self.assertTrue(props.containsKey('coherence'));
+                    self.verifyTrue(epoch.getProtocolParameters().containsKey('coherence'));
                 end
                 if(isfield(pds,'chooseRF'))
-                    self.assertTrue(props.containsKey('chooseRF'));
+                    self.verifyTrue(props.containsKey('chooseRF'));
                 end
                 if(isfield(pds,'timeOfChoice'))
-                    self.assertTrue(props.containsKey('timeOfChoice'));
+                    self.verifyTrue(props.containsKey('timeOfChoice'));
                 end
                 if(isfield(pds,'timeOfReward'))
-                    self.assertTrue(props.containsKey('timeOfReward'));
+                    self.verifyTrue(props.containsKey('timeOfReward'));
                 end
                 if(isfield(pds,'timeOfFixation'))
-                    self.assertTrue(props.containsKey('timeBrokeFixation'));
+                    self.verifyTrue(props.containsKey('timeBrokeFixation'));
                 end
                 if(isfield(pds,'correct'))
-                    if(pds.correct(n))
-                        tags = epoch.getTags();
-                        found = false;
-                        for t = 1:lenth(tags);
-                            if(strcmp(char(tags(t)), 'correct'))
-                                found = true;
-                            end
-                        end
-                        self.assertTrue(found);
+                    if(pds.correct(pdsIdx))
+                        self.verifyTrue(epoch.getTags().values().contains('correct'));
                     end
-                end
-                
+                end 
             end
         end
         
@@ -285,7 +271,8 @@ classdef TestPDSImport < TestPldapsBase
             end
         end
         
-        function testEpochProtocolParametersShouldHaveStimulusParameters(self)
+        function testEpochProtocolParametersShouldHaveStimulusDeviceParameters(self)
+            import matlab.unittest.constraints.*;
             
             warning('off')
             fileStruct = load(self.pdsFile, '-mat');
@@ -297,29 +284,27 @@ classdef TestPDSImport < TestPldapsBase
                 num2cell(strcat('bit_', num2str(cell2mat(dv.bits(:,1)))), 2)',...
                 2);
             
-            dvMap = ovation.struct2map(dv);
+            parametersMap = ovation.struct2map(dv.params);
             
             
             epochsItr = self.epochGroup.getEpochs().iterator();
             while(epochsItr.hasNext())
                 epoch = epochsItr.next();
                 
-                keyItr = dvMap.keySet().iterator();
+                keyItr = parametersMap.keySet().iterator();
                 while(keyItr.hasNext())
                     key = keyItr.next();
-                    if(isempty(dvMap.get(key)))
+                    if(isempty(parametersMap.get(key)))
                         continue;
                     end
-                    if(isjava(dvMap.get(key)))
-                        assertJavaEqual(dvMap.get(key),...
+                    if(isjava(parametersMap.get(key)))
+                        assertJavaEqual(parametersMap.get(key),...
                             epoch.getProtocolParameters().get(key));
-                        assertJavaEqual(dvMap.get(key),...
+                        assertJavaEqual(parametersMap.get(key),...
                             epoch.getDeviceParameters().get(key));
                     else
-                        self.assertEqual(dvMap.get(key),...
-                            epoch.getProtocolParameters().get(key));
-                        self.assertEqual(dvMap.get(key),...
-                            s.getDeviceParameters.get(key));
+                        self.verifyThat(parametersMap.get(key), ...
+                            IsEqualTo(epoch.getProtocolParameters().get(key)));
                     end
                 end
             end

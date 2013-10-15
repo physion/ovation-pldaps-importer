@@ -138,6 +138,7 @@ function insertEpochs(epochGroup, protocol, animalSource, interTrialProtocol, pd
         end
         
         deviceParameters = rmfield(parameters, 'params'); % TODO: should params be removed for device parameters?
+        
         sources = java.util.HashMap();
         sources.put('monkey', animalSource);
         
