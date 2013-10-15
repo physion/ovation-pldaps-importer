@@ -20,6 +20,8 @@ classdef TestPLXImport < TestPldapsBase
         
         function localFixture(self)
             localFixture@TestPldapsBase(self);
+           
+            import ovation.*;
             
             plxStruct = load(self.plxFile);
             self.plx = plxStruct.plx;
@@ -27,7 +29,7 @@ classdef TestPLXImport < TestPldapsBase
             disp('Calculating PLX-PDS unique number mapping...');
             cache.uniqueNumber = java.util.HashMap();
             cache.truncatedUniqueNumber = java.util.HashMap();
-            epochs = asarray(epochGroup.getEpochs());
+            epochs = asarray(self.epochGroup.getEpochs());
             for i = 1:length(epochs)
                 if(mod(i,5) == 0)
                     disp(['    Epoch ' num2str(i) ' of ' num2str(length(epochs))]);
@@ -51,17 +53,20 @@ classdef TestPLXImport < TestPldapsBase
         end
         
         function assertFileResource(~, target, name)
+            import ovation.*;
+            
             [~,name,ext]=fileparts(name);
             name = [name ext];
-            names = target.getResourceNames();
+            names = asarray(target.getResourceNames());
             found = false;
             for i = 1:length(names)
                 if(names(i).equals(name))
                     found = true;
+                    break;
                 end
             end
             
-            assertTrue(found);
+            self.assertTrue(found);
         end
         
     end
@@ -82,11 +87,15 @@ classdef TestPLXImport < TestPldapsBase
         end
         
         function testFindEpochGivesNullForNullEpochGroup(~)
-            assertTrue(isempty(findEpochByUniqueNumber([], [1,2])));
+            import matlab.unittest.constraints.*; 
+            self.assertThat(findEpochByUniqueNumber([], [1,2]),...
+                IsEmpty());
         end
         
         function testGivesEmptyForNoMatchingEpochByUniqueNumber(self)
-            assertTrue(isempty(findEpochByUniqueNumber(self.epochGroup, [1,2,3,4,5,6])));
+            import matlab.unittest.constraints.*;
+            self.assertThat(findEpochByUniqueNumber(self.epochGroup, [1,2,3,4,5,6]),...
+                IsEmpty());
         end
         
         function testFindsMatchingEpochFromUniqueNumber(self)
@@ -99,7 +108,7 @@ classdef TestPLXImport < TestPldapsBase
                     continue;
                 end
                 epochUnum = epoch.getOwnerProperty('uniqueNumber').getIntegerData()';
-                assertTrue(all(mod(epochUnum, 256) == unum));
+                self.verifyEquals(mod(epochUnum, 256), unum);
             end
         end
         
@@ -120,7 +129,7 @@ classdef TestPLXImport < TestPldapsBase
                 end
             end
             
-            assertEqual(expected, actual);
+            self.assertEqual(expected, actual);
         end
         
         function testShouldAssignSpikeTimesToSpanningEpoch(self)
