@@ -151,8 +151,8 @@ function insertEpochs(epochGroup, protocol, animalSource, interTrialProtocol, pd
                 
                 interEpoch = epochGroup.insertEpoch(sources,...
                     [],... % No output sources
-                    epochGroup.getStart().plusMillis(dataPixxStart * 1000),...
-                    epochGroup.getStart().plusMillis(dataPixxEnd * 1000),...
+                    epochGroup.getStart().plusMillis(interEpochDataPixxStart * 1000),...
+                    epochGroup.getStart().plusMillis(interEpochDataPixxStop * 1000),...
                     interTrialProtocol,...
                     struct2map(protocol_parameters),...
                     struct2map(deviceParameters)); %TODO deviceParameters do not match EquipmentSetup
@@ -161,9 +161,6 @@ function insertEpochs(epochGroup, protocol, animalSource, interTrialProtocol, pd
                 interEpoch.addProperty('dataPixxStart_seconds', interEpochDataPixxStart);
                 interEpoch.addProperty('dataPixxStop_seconds', interEpochDataPixxStop);
                 
-                if(interEpoch.getProtocolParameters().size() == 0)
-                    disp('Crap');
-                end
                 
                 %if(~isempty(previousEpoch))
                 %    interEpoch.setPreviousEpoch(previousEpoch);
@@ -190,9 +187,6 @@ function insertEpochs(epochGroup, protocol, animalSource, interTrialProtocol, pd
         
         epoch.addProperty('goodTrial', pds.goodtrial(n)); %TODO is this a measurement?
         
-        if(epoch.getProtocolParameters().size() == 0)
-            disp('Crap');
-        end
         % Next/Prev Epoch not supported in Ovation 2.0 yet
         if(~isempty(previousEpoch))
             epoch.addProperty('previousEpoch', previousEpoch.getURI());
