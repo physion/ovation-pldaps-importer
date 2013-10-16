@@ -120,6 +120,8 @@ classdef TestPLXImport < TestPldapsBase
         
         function testImportsExpectedNumberOfEpochs(self)
             import ovation.*;
+            import matlab.unittest.constraints.*;
+            
             expected = size(self.plx.unique_number,1)*2 - 1;
             actual = 0;
             itr = self.epochGroup.getEpochs().iterator();
@@ -135,7 +137,7 @@ classdef TestPLXImport < TestPldapsBase
                 end
             end
             
-            self.assertEqual(expected, actual);
+            self.verifyThat(actual, IsEqualTo(expected));
         end
         
         function testShouldAssignSpikeTimesToSpanningEpoch(self)
