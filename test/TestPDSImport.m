@@ -260,10 +260,10 @@ classdef TestPDSImport < TestPldapsBase
             
             self.context.getRepository().clear(); % beta 7 refresh bug
             
-            epochs = asarray(self.epochGroup.getEpochs().iterator());
+            epochs = sort_epochs(asarray(self.epochGroup.getEpochs().iterator()));
             eyeTrackingEpoch = 1;
             for i=1:length(epochs)
-                epoch = epochs(i);
+                epoch = epochs{i};
                 if(isempty(strfind(epoch.getProtocol().getName(), 'Intertrial')))
                     
                     rData = nm2data(epoch.getMeasurement('Eye position'));
