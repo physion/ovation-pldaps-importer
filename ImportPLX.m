@@ -1,7 +1,7 @@
 function ImportPLX(epochGroup, plxFile, bits, plxRawFile, expFile, protocol, varargin)
     % Import Plexon data into an existing PL-DA-PS PDS EpochGroup
     %
-    %    ImportPLX(epochGroup, plxFile, plxRawFile, expFile)
+    %    ImportPLX(epochGroup, plxFile, plxRawFile, expFile, protocol)
     %
     %      epochGroup: ovation.EpochGroup containing Epochs matching Plexon
     %      data.

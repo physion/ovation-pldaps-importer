@@ -7,7 +7,7 @@ function epochGroup = ImportPldapsPDS(container,...
         ntrials)
     % Import PL-DA-PS PDS structural data into an Ovation Experiment
     %
-    %    epochGroup = ImportPladpsPDS(experiment, animal, pdsfile, timezone)
+    %    epochGroup = ImportPladpsPDS(experiment, animal, pdsfile, protocol, interTrialProtocol, timezone)
     %      context: context with which to find the experiment
     %
     %      experiment: ovation.Experiment or ovation.EpochGroup object. A
