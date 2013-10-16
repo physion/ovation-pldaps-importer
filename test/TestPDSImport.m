@@ -43,17 +43,24 @@ classdef TestPDSImport < TestPldapsBase
             
             epochs = asarray(self.epochGroup.getEpochs());
             
+            foundPrev = false;
             for i = 2:length(epochs)
-                prev = self.context.getObjectWithURI(epochs(i).getJserProperty(epochs(i).getOwner(), 'previousEpoch'));
-                self.assertNotEmpty(prev);
-                if(strfind(char(epochs(i).getProtocol().getName()), 'Intertrial'))
-                    self.verifyEmpty(strfind(prev.getProtocol().getName(),'Intertrial'));
-                    self.verifyNotEmpty(prev.getOwnerProperty('trialNumber'));
-                else
-                    self.verifyNotEmpty(strfind(prev.getProtocol().getName(),'Intertrial'));
+                prevUri = epochs(i).getUserProperty(epochs(i).getOwner(), 'previousEpoch');
+                if(~isempty(prevUri))
+                    foundPrev = true;
+                    prev = self.context.getObjectWithURI(prevUri);
+                    self.assertNotEmpty(prev);
+                    if(strfind(char(epochs(i).getProtocol().getName()), 'Intertrial'))
+                        self.verifyEmpty(strfind(prev.getProtocol().getName(),'Intertrial'));
+                        self.verifyNotEmpty(prev.getOwnerProperty('trialNumber'));
+                    else
+                        self.verifyNotEmpty(strfind(prev.getProtocol().getName(),'Intertrial'));
+                    end
                 end
                 
             end
+            
+            self.verifyTrue(foundPrev, 'Found a previousEpoch link');
         end
         
         
@@ -251,6 +258,7 @@ classdef TestPDSImport < TestPldapsBase
             warning('on')
             pds = fileStruct.PDS;
             
+            self.context.getRepository().clear(); % beta 7 refresh bug
             
             epochs = asarray(self.epochGroup.getEpochs().iterator());
             eyeTrackingEpoch = 1;
@@ -258,7 +266,7 @@ classdef TestPDSImport < TestPldapsBase
                 epoch = epochs(i);
                 if(isempty(strfind(epoch.getProtocol().getName(), 'Intertrial')))
                     
-                    rData = asnumeric(epoch.getMeasurement('Eye position'));
+                    rData = nm2data(epoch.getMeasurement('Eye position'));
                     
                     self.verifyEqual(pds.eyepos{eyeTrackingEpoch}(:,1), rData.position_x);
                     self.verifyEqual(pds.eyepos{eyeTrackingEpoch}(:,2), rData.position_y);
@@ -296,8 +304,14 @@ classdef TestPDSImport < TestPldapsBase
                     if(isempty(parametersMap.get(key)))
                         continue;
                     end
-                    self.verifyThat(parametersMap.get(key), ...
-                        IsEqualTo(epoch.getProtocolParameters().get(key)));
+                    v = epoch.getProtocolParameters().get(key);
+                    if(isjava(v) && isa(v, 'java.util.List'))
+                        jarrayType = javaArray('java.lang.Double', 1);
+                        arr = v.toArray(jarrayType);
+                        v = cell2mat(cell(arr));
+                    end
+                    
+                    self.verifyThat(v, IsEqualTo(parametersMap.get(key)));
                 end
             end
             
