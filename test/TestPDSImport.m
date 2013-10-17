@@ -306,16 +306,21 @@ classdef TestPDSImport < TestPldapsBase
                     end
                     v = epoch.getProtocolParameters().get(key);
                     if(isjava(v) && isa(v, 'java.util.List'))
-                        jarrayType = javaArray('java.lang.Double', 1);
-                        try
-                            arr = v.toArray(jarrayType);
-                            v = cell2mat(cell(arr));
-                        catch
-                            % Not numeric values
+                        if(v.size() > 1 && isa(v(1), 'java.util.List'))
+                            continue;
+                        else
+                            
+                            jarrayType = javaArray('java.lang.Double', 1);
+                            try
+                                arr = v.toArray(jarrayType);
+                                v = cell2mat(cell(arr));
+                            catch
+                                % Not numeric values
+                            end
                         end
+                        
+                        self.verifyThat(v, IsEqualTo(parametersMap.get(key)));
                     end
-                    
-                    self.verifyThat(v, IsEqualTo(parametersMap.get(key)));
                 end
             end
             
