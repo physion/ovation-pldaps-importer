@@ -52,7 +52,7 @@ classdef TestPDSImport < TestPldapsBase
                     self.assertNotEmpty(prev);
                     if(strfind(char(epochs(i).getProtocol().getName()), 'Intertrial'))
                         self.verifyEmpty(strfind(prev.getProtocol().getName(),'Intertrial'));
-                        self.verifyNotEmpty(prev.getOwnerProperty('trialNumber'));
+                        self.verifyNotEmpty(prev.getUserProperty(prev.getOwner(), 'trialNumber'));
                     else
                         self.verifyNotEmpty(strfind(prev.getProtocol().getName(),'Intertrial'));
                     end
@@ -63,6 +63,17 @@ classdef TestPDSImport < TestPldapsBase
             self.verifyTrue(foundPrev, 'Found a previousEpoch link');
         end
         
+        function testShouldAddIntertrialTagToIntertrialEpochs(self)
+            import ovation.*
+            
+            epochs = asarray(self.epochGroup.getEpochs());
+            
+            for i = 2:length(epochs)
+                if(strfind(char(epochs(i).getProtocol().getName()), 'Intertrial'))
+                    self.verifyTrue(epochs(i).getAllTags().contains('intertrial'));
+                end
+            end
+        end
         
         function testImportsCorrectNumberOfEpochs(self)
             import ovation.*;

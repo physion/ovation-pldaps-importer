@@ -98,7 +98,7 @@ function ImportPLX(epochGroup, plxFile, bits, plxRawFile, expFile, protocol, var
             epochCache);
         if(isempty(epoch))
             warning('ovation:import:plx:unique_number',...
-                'Unable to align PLX data: PLX data contains a unique number not present in the epoch group');
+               'Unable to align PLX data: PLX data contains a unique number not present in the epoch group');
             continue;
         end
         
@@ -119,17 +119,14 @@ function ImportPLX(epochGroup, plxFile, bits, plxRawFile, expFile, protocol, var
         insertEvents(epoch, plx, bitsMap, start_time, end_time, drSuffix);
         
         % Inter-epoch spikes are end_time to next strobe_time (if present)
-        % else end
-        if(~isempty(next_epoch(epoch)))
-            next = next_epoch(epoch);
-            if(strfind(next.getProtocolID(), 'intertrial'))
-                if(i == length(start_times))
-                    inter_trial_end = [];
-                else
-                    inter_trial_end = start_times(i+1);
-                end
+        nextEpoch = next_epoch(epoch);
+        if(~isempty(nextEpoch))
+            if(strfind(char(nextEpoch.getProtocol().getName()), 'Intertrial'))
+                inter_trial_end = end_time + epoch_duration_s(nextEpoch);
                 
-                insertSpikeAnalysisRecord(next,...
+                %disp([char(nextEpoch.getStart().toString()) ' ' num2str(end_time) ' ' num2str(inter_trial_end)]);
+                
+                insertSpikeAnalysisRecord(nextEpoch,...
                     plx,...
                     end_time,...
                     inter_trial_end,...
@@ -139,7 +136,7 @@ function ImportPLX(epochGroup, plxFile, bits, plxRawFile, expFile, protocol, var
             end
             
             % Add bit events to inter-trial Epoch
-            insertEvents(next, plx, bitsMap, start_time, end_time, drSuffix);
+            insertEvents(nextEpoch, plx, bitsMap, start_time, end_time, drSuffix);
         end
         
         nTrialProgress = 1;
@@ -163,6 +160,11 @@ function ImportPLX(epochGroup, plxFile, bits, plxRawFile, expFile, protocol, var
         f = java.io.File(fullfile(pwd(), expFile));
     end
     epochGroup.addResource('Plexon EXP', f.toURI().toURL(), 'application/x-plexon-exp');
+end
+
+function d = epoch_duration_s(epoch)
+    interval = org.joda.time.Interval(epoch.getStart(), epoch.getEnd());
+    d = interval.toDurationMillis() / 1000;
 end
 
 function insertEvents(epoch, plx, bitsMap, start_time, end_time, drSuffix)

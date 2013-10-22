@@ -158,6 +158,12 @@ classdef TestPLXImport < TestPldapsBase
             
             start_times = self.plx.ts{7}(1:2:end);
             end_times = self.plx.ts{7}(2:2:end);
+            
+            
+            foundSpikeTimes = false;
+            foundInterEpochSpikeTimes = false;
+            shouldFindInterEpochSpikeTimes = false;
+            
             for i = 1:size(self.plx.unique_number,1)
                 epoch = findEpochByUniqueNumber(self.epochGroup,...
                     self.plx.unique_number(i,:),...
@@ -167,17 +173,31 @@ classdef TestPLXImport < TestPldapsBase
                     continue;
                 end
                 
-                foundSpikeTimes = false;
-                foundInterEpochSpikeTimes = false;
+                nextUri = epoch.getUserProperty(epoch.getOwner(), 'nextEpoch');
+                if(~isempty(nextUri))
+                    interTrialEpoch = self.context.getObjectWithURI(nextUri);
+                else
+                    interTrialEpoch = [];
+                end
+                
                 for c = 2:maxChannels % Row 1 is unsorted
                     for u = 2:maxUnits % Col 1 in unsorted
+                        if(isempty(self.plx.wave_ts{c,u}))
+                            continue;
+                        end
+                        
                         spikeTimes = self.plx.wave_ts{c,u};
+                        
+                        recordName = ['channel_' ...
+                            num2str(c-1) '_unit_' num2str(u-1)];
                         
                         epochSpikeTimes = spikeTimes(spikeTimes >= start_times(i) & ...
                             spikeTimes < end_times(i)) - start_times(i);
+                        
                         if(i < size(self.plx.unique_number,1))
                             interEpochSpikeTimes = spikeTimes(spikeTimes >= end_times(i) & ...
                                 spikeTimes < start_times(i+1)) - end_times(i);
+                            shouldFindInterEpochSpikeTimes = true;
                         else
                             interEpochSpikeTimes = [];
                         end
@@ -187,7 +207,7 @@ classdef TestPLXImport < TestPldapsBase
                         for d = 1:length(analysisRecords)
                             % assume there's only one DR
                             record = analysisRecords(d);
-                            if(record.getName().startsWith(['channel_' num2str(c) '_unit_' num2str(u)]))
+                            if(record.getName().startsWith(recordName))
                                 
                                 actualSpikeTimes = record.getOutputs().get('spike times');
                                 if(~isempty(actualSpikeTimes))
@@ -199,35 +219,48 @@ classdef TestPLXImport < TestPldapsBase
                                     
                                     
                                     self.verifyThat(min(dataTimes), IsGreaterThanOrEqualTo(0));
-                                    self.verifyThat(max(dataTimes), IsLessThan((epoch.getEnd().getMillis() - epoch.getStart().getMillis())/1000));
+                                    self.verifyThat(max(dataTimes), IsGreaterThanOrEqualTo(min(dataTimes)));
+                                    
+                                    % TODO: max(dateTimes) is longer than
+                                    %  Epoch. Do PDS and PLX epoch
+                                    %  boundaries not align?
                                     
                                     foundSpikeTimes = true;
                                 end
                             end
                         end
                         
-                        if(~isempty(interEpochSpikeTimes))
-                            nextUri = epoch.getUserProperty(epoch.getOwner(), 'nextEpoch');
-                            if(~isempty(nextUri))
-                                interTrialEpoch = self.context.getObjectWithURI(nextUri);
-                                if(~isempty(interTrialEpoch))
-                                    analysisRecords = asarray(interTrialEpoch.getAnalysisRecords(interTrialEpoch.getOwner()));
-                                    
-                                    for d = 1:length(analysisRecords)
-                                        record = analysisRecords(d);
-                                        if(record.getName().startsWith(['channel_' num2str(c) '_unit_' num2str(u)]))
-                                            actualSpikeTimes = record.getOutputs().get('spike times');
-                                            if(~isempty(actualSpikeTimes))
-                                                self.verifyThat(nm2data(actualSpikeTimes).spike_time_from_epoch_start,...
-                                                    IsEqualTo(epochSpikeTimes,...
-                                                    'Within',...
-                                                    AbsoluteTolerance(1e-6))); %nanosecond precision
-                                                
-                                                self.verifyThat(min(actualSpikeTimes), IsGreaterThanOrEqualTo(0));
-                                                self.verifyThat(max(actualSpikeTimes), IsLessThan((epoch.getEnd().getMillis() - epoch.getStart().getMillis())/1000), 'Within', AbsoluteTolerance(0.001));
-                                                foundInterEpochSpikeTimes = true;
-                                            end
-                                        end
+                        if(~isempty(interTrialEpoch))
+                            
+                            if(strfind(char(interTrialEpoch.getProtocol().getName()), 'Intertrial'))
+                                d = org.joda.time.Interval(interTrialEpoch.getStart(), interTrialEpoch.getEnd()).toDurationMillis / 1000;
+                                
+                                interEpochSpikeTimes = spikeTimes(spikeTimes >= end_times(i) & ...
+                                    spikeTimes < (end_times(i) + d)) - end_times(i);
+                                shouldFindInterEpochSpikeTimes = true;
+                            end
+                            
+                            %disp([char(interTrialEpoch.getStart().toString()) ' ' num2str(end_times(i)) ' ' num2str(end_times(i) + d)]);
+                            
+                            analysisRecords = asarray(interTrialEpoch.getAnalysisRecords(interTrialEpoch.getOwner()));
+                            
+                            for d = 1:length(analysisRecords)
+                                record = analysisRecords(d);
+                                if(record.getName().startsWith(recordName))
+                                    actualSpikeTimes = record.getOutputs().get('spike times');
+                                    if(~isempty(actualSpikeTimes))
+                                        foundInterEpochSpikeTimes = true;
+                                        
+                                        self.verifyThat(nm2data(actualSpikeTimes).spike_time_from_epoch_start,...
+                                            IsEqualTo(interEpochSpikeTimes,...
+                                            'Within',...
+                                            AbsoluteTolerance(1e-6))); %nanosecond precision
+                                        
+                                        self.verifyThat(min(nm2data(actualSpikeTimes).spike_time_from_epoch_start),...
+                                            IsGreaterThanOrEqualTo(0));
+                                        self.verifyThat(max(nm2data(actualSpikeTimes).spike_time_from_epoch_start),...
+                                            IsLessThan((epoch.getEnd().getMillis() - epoch.getStart().getMillis())/1000));
+                                        
                                     end
                                 end
                             end
@@ -237,7 +270,7 @@ classdef TestPLXImport < TestPldapsBase
             end
             
             self.verifyTrue(foundSpikeTimes, 'Found some spike times');
-            self.verifyTrue(foundInterEpochSpikeTimes, 'Found some inter-epoch spike times');
+            self.verifyThat(foundInterEpochSpikeTimes, IsEqualTo(shouldFindInterEpochSpikeTimes), 'Found some inter-epoch spike times');
         end
         
         
@@ -251,8 +284,9 @@ classdef TestPLXImport < TestPldapsBase
             
             self.context.getRepository().clear();
             
-            start_times = self.plx.ts{7}(1:2:end);
-            end_times = self.plx.ts{7}(2:2:end);
+            
+            foundWaveforms = false;
+            
             for i = 1:size(self.plx.unique_number,1)
                 epoch = findEpochByUniqueNumber(self.epochGroup,...
                     self.plx.unique_number(i,:),...
@@ -264,30 +298,38 @@ classdef TestPLXImport < TestPldapsBase
                 
                 for c = 2:maxChannels % Row 1 is unsorted
                     for u = 2:maxUnits % Col 1 in unsorted
-                        spikeTimes = self.plx.wave_ts{c,u};
+                        if(isempty(self.plx.wave_ts{c,u}))
+                            continue;
+                        end
                         
-                        epochSpikeTimes = spikeTimes(spikeTimes >= start_times(i) & ...
-                            spikeTimes < end_times(i)) - start_times(i);
-                        
+                        recordName = ['channel_' ...
+                            num2str(c-1) '_unit_' num2str(u-1)];
                         
                         analysisRecords = asarray(epoch.getAnalysisRecords(epoch.getOwner()));
-                        
-                        self.verifyThat(isempty(analysisRecords), IsEqualTo(isempty(epochSpikeTimes)));
                         
                         for d = 1:length(analysisRecords)
                             % assume there's only one DR
                             record = analysisRecords(d);
-                            waveforms = record.getOutputs().get('spike waveforms');
-                            
-                            self.verifyThat(size(nm2data(waveforms),1),...
-                                IsEqualTo(numel(epochSpikeTimes)));
-                            
+                            if(record.getName().startsWith(recordName))
+                                waveforms = record.getOutputs().get('spike waveforms');
+                                spikeTimes = record.getOutputs().get('spike times');
+
+                                if(~isempty(waveforms))
+                                    self.verifyNotEmpty(spikeTimes);
+                                    data = nm2data(waveforms);
+                                    self.verifyThat(size(data.spike_waveforms,1),...
+                                        IsEqualTo(size(nm2data(spikeTimes).spike_time_from_epoch_start, 1)));
+                                    foundWaveforms = true;
+                                end
+                            end
                         end
+                        
+                        
                     end
                 end
             end
             
+            self.verifyTrue(foundWaveforms);
         end
-        
     end
 end

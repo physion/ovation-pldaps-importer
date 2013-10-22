@@ -148,7 +148,6 @@ function insertEpochs(epochGroup, protocol, animalSource, interTrialProtocol, pd
         sources = java.util.HashMap();
         sources.put('monkey', animalSource);
         
-        
         if(n > 1) % Assumes first Epoch is not an inter-trial
             if(dataPixxStart > (pds.datapixxstoptime(n-1) - dataPixxZero))
                 % Inserting inter-trial Epoch
@@ -167,12 +166,15 @@ function insertEpochs(epochGroup, protocol, animalSource, interTrialProtocol, pd
                 interEpoch.addProperty('dataPixxStart_seconds', interEpochDataPixxStart);
                 interEpoch.addProperty('dataPixxStop_seconds', interEpochDataPixxStop);
                 
-                
-                %if(~isempty(previousEpoch))
-                %    interEpoch.setPreviousEpoch(previousEpoch);
-                %end
-                
+               
+                if(~isempty(previousEpoch))
+                    interEpoch.addProperty('previousEpoch', previousEpoch.getURI());
+                    previousEpoch.addProperty('nextEpoch', interEpoch.getURI());
+                    %disp([char(previousEpoch.getURI().toString()) ' <-> ' char(interEpoch.getURI().toString())]);
+                end
                 previousEpoch = interEpoch;
+                
+                interEpoch.addTag('intertrial');
             end
         end
         
@@ -193,11 +195,12 @@ function insertEpochs(epochGroup, protocol, animalSource, interTrialProtocol, pd
         
         epoch.addProperty('goodTrial', pds.goodtrial(n)); %TODO is this a measurement?
         
-        % Next/Prev Epoch not supported in Ovation 2.0 yet
         if(~isempty(previousEpoch))
             epoch.addProperty('previousEpoch', previousEpoch.getURI());
             previousEpoch.addProperty('nextEpoch', epoch.getURI());
+            %disp([char(previousEpoch.getURI().toString()) ' <-> ' char(epoch.getURI().toString())]);
         end
+        
         previousEpoch = epoch;
         
         insertEyePositionMeasurement(epoch, 'monkey', pds.eyepos{n}, protocol);
