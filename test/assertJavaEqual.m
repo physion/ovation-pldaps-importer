@@ -19,11 +19,12 @@ function assertJavaEqual(A, B, custom_message)
 
     if nargin < 3
         custom_message = '';
+    else
+        custom_message = [custom_message '.'];
     end
 
     if (~A.equals(B))
-        message = xunit.utils.comparisonMessage(custom_message, ...
-            'Inputs are not equal.', A, B);
+        message = [custom_message ' Inputs are not equal. Expected: ' char(A.toString()) ' vs. Actual: ' char(B.toString())];
         throwAsCaller(MException('assertEqual:nonEqual', '%s', message));
     end
 end

@@ -1,11 +1,13 @@
-function epochGroup = ImportPldapsPDS(experiment,...
-                                      animal,...
-                                      pdsfile,...
-                                      timezone,...
-                                      ntrials)
+function epochGroup = ImportPldapsPDS(container,...
+        animalSource,...
+        protocol,...
+        interTrialProtocol,...
+        pdsfile,...
+        timezone,...
+        ntrials)
     % Import PL-DA-PS PDS structural data into an Ovation Experiment
     %
-    %    epochGroup = ImportPladpsPDS(experiment, animal, pdsfile, timezone)
+    %    epochGroup = ImportPladpsPDS(experiment, animal, pdsfile, protocol, interTrialProtocol, timezone)
     %      context: context with which to find the experiment
     %
     %      experiment: ovation.Experiment or ovation.EpochGroup object. A
@@ -20,53 +22,62 @@ function epochGroup = ImportPldapsPDS(experiment,...
     %      timezone: name of the time zone (e.g. 'America/New_York') where
     %      the experiment was performed
     
+    % TODO OTHER PARAMETERS DOCS
+    
     import ovation.*;
     
-    nargchk(4, 5, nargin); %#ok<NCHKI>
-    if(nargin < 5)
+    narginchk(6,7);
+    if(nargin < 7)
         ntrials = [];
     end
     
     
-    %validate(); -makes sure the properties have the right length, etc
     pdsFileStruct = load('-mat', pdsfile);
     pds = pdsFileStruct.PDS;
     displayVariables = pdsFileStruct.dv;
     
-    [~, trialFunction, ~] = fileparts(pdsfile);
+    [~, pdsFileName, pdsExt] = fileparts(pdsfile);
     
     
     % External devices
-    devices.psychToolbox = experiment.externalDevice('PsychToolbox', 'Huk lab');
-    devices.psychToolbox.addProperty('psychtoolbox version', '3.0.8');
-    devices.psychToolbox.addProperty('matlab version', 'R2009a 32bit');
-    devices.datapixx = experiment.externalDevice('DataPixx', 'VPixx Technologies');
-    devices.monitor = experiment.externalDevice('Monitor LH 1080p', 'LG');
-    devices.monitor.addProperty('resolution', NumericData([1920, 1080]));
-    devices.eye_tracker = experiment.externalDevice('Eye Trac 6000', 'ASL');
-    devices.eye_tracker_timer = experiment.externalDevice('Windows', 'Microsoft');
+    % TODO more devices?
+    devices.psychToolbox.version = '3.0.8';
+    devices.psychToolbox.matlab_version = 'R2009a 32bit';
+    devices.datapixx.manufacturer = 'VPixx Technologies';
+    devices.monitor.model = 'LH 1080p';
+    devices.monitor.manufacturer = 'LG';
+    devices.monitor.resolution.width = 1920;
+    devices.monitor.resolution.height = 1080;
+    devices.eye_tracker.model = 'Eye Trac 6000';
+    devices.eye_tracker.manufacturer = 'ASL';
+    devices.eye_tracker.timer = 'Microsoft Windows';
+    
+    if(java.lang.String(class(container)).endsWith('Experiment'))
+        if(isempty(container.getEquipmentSetup()))
+            container.setEquipmentSetupFromMap(struct2map(devices));
+        end
+    elseif(isempty(container.getExperiment().getEquipmentSetup()))
+        container.getExperiment().setEquipmentSetupFromMap(struct2map(devices));
+    end
     
     % generate the start and end times for each epoch, from the unique_number and
     % timezone
+    
+    if(ischar(timezone))
+        timezone = org.joda.time.DateTimeZone.forID(timezone);
+    end
     
     firstEpochIdx = pds.datapixxstarttime == min(pds.datapixxstarttime);
     firstEpochStart = uniqueNumberToDateTime(pds.unique_number(firstEpochIdx,:),...
         timezone.getID());
     
-    firstEpochDatapixxStart = pds.datapixxstarttime(firstEpochIdx);
-    
-    lastEpochIdx = pds.datapixxstoptime == max(pds.datapixxstoptime);
-    lastEpochDatapixxEnd = pds.datapixxstoptime(lastEpochIdx);
-    lastEpochEnd = firstEpochStart.plusMillis(...
-        1000 * (lastEpochDatapixxEnd - firstEpochDatapixxStart)...
-        );
-    
-    
     %% Insert one epochGroup per PDS file
-    epochGroup = experiment.insertEpochGroup(animal,...
-        trialFunction, ...
+    epochGroup = container.insertEpochGroup(pdsFileName,...
         firstEpochStart,...
-        lastEpochEnd);
+        protocol,... % No EpochGroup-level protocol
+        [],... % No EpochGroup-level protocol parameters
+        []... % No EpochGroup-level device parameters
+        );
     
     % Convert DV paired cells to a struct
     displayVariables.bits = cell2struct(displayVariables.bits(:,2)',...
@@ -74,15 +85,32 @@ function epochGroup = ImportPldapsPDS(experiment,...
         2);
     
     insertEpochs(epochGroup,...
-        trialFunction,...
+        protocol,...
+        animalSource,...
+        interTrialProtocol,...
         pds,...
-        repmat(displayVariables,length(pds.unique_number),1),...
-        devices,...
-        ntrials); %TODO dv should be a struct array, but we're faking it
+        displayVariables,...
+        ntrials);
     
+    f = java.io.File(pdsfile);
+    if(~f.isAbsolute())
+        f = java.io.File(fullfile(pwd(), pdsfile));
+    end
+    
+    epochGroup.addResource([pdsFileName pdsExt],...
+        f.toURI().toURL(),...
+        'application/x-pldaps',...
+        [pdsFileName pdsExt]);
+    
+    
+    fs = container.getDataContext().getFileService();
+    while(fs.hasPendingUploads())
+        disp('Waiting for pending uploads to complete...');
+        fs.waitForPendingUploads(10, java.util.concurrent.TimeUnit.SECONDS);
+    end
 end
 
-function insertEpochs(epochGroup, protocolID, pds, parameters, devices, ntrials)
+function insertEpochs(epochGroup, protocol, animalSource, interTrialProtocol, pds, parameters, ntrials)
     import ovation.*;
     
     if(isempty(ntrials))
@@ -93,13 +121,6 @@ function insertEpochs(epochGroup, protocolID, pds, parameters, devices, ntrials)
     previousEpoch = [];
     tic;
     for n=1:ntrials
-        if(mod(n,5) == 0)
-            elapsedTime = toc;
-            
-            disp(['    ' num2str(n) ' of ' num2str(ntrials) ' (' num2str(elapsedTime/5) ' s/epoch)...']);
-            tic();
-        end
-        
         
         dataPixxZero = min(pds.datapixxstarttime);
         dataPixxStart = pds.datapixxstarttime(n) - dataPixxZero;
@@ -107,7 +128,7 @@ function insertEpochs(epochGroup, protocolID, pds, parameters, devices, ntrials)
         
         
         
-        protocol_parameters = parameters(n);
+        protocol_parameters = parameters.params;
         protocol_parameters.target1_XY_deg_visual_angle = pds.targ1XY(n);
         if(isfield(pds, 'targ2XY'))
             protocol_parameters.target2_XY_deg_visual_angle = pds.targ2XY(n);
@@ -122,39 +143,70 @@ function insertEpochs(epochGroup, protocolID, pds, parameters, devices, ntrials)
             protocol_parameters.inReceptiveField = pds.inRF(n);
         end
         
+        deviceParameters = rmfield(parameters, 'params'); % TODO: should params be removed for device parameters?
+        
+        sources = java.util.HashMap();
+        sources.put('monkey', animalSource);
+        
         if(n > 1) % Assumes first Epoch is not an inter-trial
-           if(dataPixxStart > (pds.datapixxstoptime(n-1) - dataPixxZero))
-               % Inserting inter-trial Epoch
-               interEpochDataPixxStart = pds.datapixxstoptime(n-1) - dataPixxZero;
-               interEpochDataPixxStop = dataPixxStart;
+            if(dataPixxStart > (pds.datapixxstoptime(n-1) - dataPixxZero))
+                % Inserting inter-trial Epoch
+                interEpochDataPixxStart = pds.datapixxstoptime(n-1) - dataPixxZero;
+                interEpochDataPixxStop = dataPixxStart;
+                
+                interEpoch = epochGroup.insertEpoch(sources,...
+                    [],... % No output sources
+                    epochGroup.getStart().plusMillis(interEpochDataPixxStart * 1000),...
+                    epochGroup.getStart().plusMillis(interEpochDataPixxStop * 1000),...
+                    interTrialProtocol,...
+                    struct2map(protocol_parameters),...
+                    struct2map(deviceParameters)); %TODO deviceParameters do not match EquipmentSetup
+                
+                
+                interEpoch.addProperty('dataPixxStart_seconds', interEpochDataPixxStart);
+                interEpoch.addProperty('dataPixxStop_seconds', interEpochDataPixxStop);
+                
                
-               interEpoch = epochGroup.insertEpoch(epochGroup.getStartTime().plusMillis(interEpochDataPixxStart * 1000),...
-                   epochGroup.getStartTime().plusMillis(interEpochDataPixxStop * 1000),...
-                   [protocolID '.intertrial'],...
-                   struct2map(protocol_parameters));
-               interEpoch.addProperty('dataPixxStart_seconds', interEpochDataPixxStart);
-               interEpoch.addProperty('dataPixxStop_seconds', interEpochDataPixxStop);
-               
-               if(~isempty(previousEpoch))
-                   interEpoch.setPreviousEpoch(previousEpoch);
-               end
-               
-               previousEpoch = interEpoch;
-           end
+                if(~isempty(previousEpoch))
+                    interEpoch.addProperty('previousEpoch', previousEpoch.getURI());
+                    previousEpoch.addProperty('nextEpoch', interEpoch.getURI());
+                    %disp([char(previousEpoch.getURI().toString()) ' <-> ' char(interEpoch.getURI().toString())]);
+                end
+                previousEpoch = interEpoch;
+                
+                interEpoch.addTag('intertrial');
+            end
         end
         
-        epoch = epochGroup.insertEpoch(epochGroup.getStartTime().plusMillis(dataPixxStart * 1000),...
-            epochGroup.getStartTime().plusMillis(dataPixxEnd * 1000),...
-            protocolID,...
-            struct2map(protocol_parameters));
+        
+        epoch = epochGroup.insertEpoch(sources,...
+            [],... % No output sources
+            epochGroup.getStart().plusMillis(dataPixxStart * 1000),...
+            epochGroup.getStart().plusMillis(dataPixxEnd * 1000),...
+            protocol,...
+            struct2map(protocol_parameters),...
+            struct2map(deviceParameters)); %TODO deviceParameters do not match EquipmentSetup
         
         epoch.addProperty('dataPixxStart_seconds', pds.datapixxstarttime(n));
         epoch.addProperty('dataPixxStop_seconds', pds.datapixxstoptime(n));
-        epoch.addProperty('uniqueNumber', NumericData(int32(pds.unique_number(n,:))));
+        epoch.addProperty('uniqueNumber', int32(pds.unique_number(n,:)));
         epoch.addProperty('uniqueNumberString', num2str(pds.unique_number(n,:)));
         epoch.addProperty('trialNumber', pds.trialnumber(n));
-        epoch.addProperty('goodTrial', pds.goodtrial(n));
         
+        epoch.addProperty('goodTrial', pds.goodtrial(n)); %TODO is this a measurement?
+        
+        if(~isempty(previousEpoch))
+            epoch.addProperty('previousEpoch', previousEpoch.getURI());
+            previousEpoch.addProperty('nextEpoch', epoch.getURI());
+            %disp([char(previousEpoch.getURI().toString()) ' <-> ' char(epoch.getURI().toString())]);
+        end
+        
+        previousEpoch = epoch;
+        
+        insertEyePositionMeasurement(epoch, 'monkey', pds.eyepos{n}, protocol);
+        
+        
+        %TODO make these a CSV
         % These are more like DerivedResponses...
         if(isfield(pds, 'chooseRF'))
             epoch.addProperty('chooseRF', pds.chooseRF(n));
@@ -174,137 +226,136 @@ function insertEpochs(epochGroup, protocolID, pds, parameters, devices, ntrials)
             end
         end
         
-        if(~isempty(previousEpoch))
-            epoch.setPreviousEpoch(previousEpoch);
+        addTimelineAnnotations(epoch, pds, n);
+        
+        nTrialProgress = 1;
+        if(mod(n,nTrialProgress) == 0)
+            elapsedTime = toc;
+            msg = ['    ' num2str(n) ' of ' num2str(ntrials) ' (' num2str(elapsedTime/nTrialProgress) ' s/epoch)...'];
+            disp(msg);
+            tic();
         end
-        previousEpoch = epoch;
-        
-        addResponseAndStimulus(epoch, protocolID, pds.eyepos{n}, parameters(n), devices, n);       
-        
-        if(isnan(pds.fp1off(n)))
-            fp1offTime = epoch.getEndTime();
+    end
+    disp('Done');
+end
+
+function addTimelineAnnotations(epoch, pds, n)
+    
+    if(isnan(pds.fp1off(n)))
+        fp1offTime = epoch.getEnd();
+    else
+        fp1offTime = epoch.getEnd().plusSeconds(pds.fp1off(n));
+    end
+    % Add timeline annotations for trial structure events.
+    % NaN indicates a missing value. For non-point envents (e.g.
+    % fixationPoint1), with a missing end, we use the Epoch endTime as
+    % the annotation end.
+    
+    epoch.addTimelineAnnotation('fixation point 1 on',...
+        'fixationPoint1',...
+        epoch.getStart().plusSeconds(pds.fp1on(n)),...
+        fp1offTime);
+    epoch.addTimelineAnnotation('fixation point 1 entered',...
+        'fixationPoint1',...
+        epoch.getStart().plusSeconds(pds.fp1entered(n)));
+    
+    if(pds.timebrokefix(n) > 0)
+        epoch.addTimelineAnnotation('time broke fixation',...
+            'fixation',...
+            epoch.getStart().plusSeconds(pds.timebrokefix(n)));
+    end
+    
+    
+    epoch.addTimelineAnnotation('fixation point 2 off',...
+        'fixationPoint2',...
+        epoch.getStart().plusSeconds(pds.fp2off(n)));
+    
+    if(isnan(pds.targoff(n)))
+        epoch.addTimelineAnnotation('target on',...
+            'target',...
+            epoch.getStart().plusSeconds(pds.targon(n)),...
+            epoch.getEnd());
+    else
+        epoch.addTimelineAnnotation('target on',...
+            'target',...
+            epoch.getStart().plusSeconds(pds.targon(n)),...
+            epoch.getStart().plusSeconds(pds.targoff(n)));
+    end
+    if(isfield(pds, 'dotson') && ~isnan(pds.dotson(n)))
+        if(isnan(pds.dotsoff(n)))
+            epoch.addTimelineAnnotation('dots on',...
+                'dots',...
+                epoch.getStart().plusSeconds(pds.dotson(n)),...
+                epoch.getEnd());
         else
-            fp1offTime = epoch.getStartTime().plusSeconds(pds.fp1off(n));
+            epoch.addTimelineAnnotation('dots on',...
+                'dots',...
+                epoch.getStart().plusSeconds(pds.dotson(n)),...
+                epoch.getStart().plusSeconds(pds.dotsoff(n)));
         end
-        
-        
-        % Add timeline annotations for trial structure events.
-        % NaN indicates a missing value. For non-point envents (e.g.
-        % fixationPoint1), with a missing end, we use the Epoch endTime as
-        % the annotation end.
-        
-        epoch.addTimelineAnnotation('fixation point 1 on',...
-            'fixationPoint1',...
-            epoch.getStartTime().plusSeconds(pds.fp1on(n)),...
-            fp1offTime);
-        epoch.addTimelineAnnotation('fixation point 1 entered',...
-            'fixationPoint1',...
-            epoch.getStartTime().plusSeconds(pds.fp1entered(n)));
-        
-        if(pds.timebrokefix(n) > 0)
-            epoch.addTimelineAnnotation('time broke fixation',...
-                'fixation',...
-                epoch.getStartTime().plusSeconds(pds.timebrokefix(n)));
-        end
-        
-        
-        epoch.addTimelineAnnotation('fixation point 2 off',...
-            'fixationPoint2',...
-            epoch.getStartTime().plusSeconds(pds.fp2off(n)));
-        
-        if(isnan(pds.targoff(n)))
-            epoch.addTimelineAnnotation('target on',...
-                'target',...
-                epoch.getStartTime().plusSeconds(pds.targon(n)),...
-                epoch.getEndTime());
-        else
-            epoch.addTimelineAnnotation('target on',...
-                'target',...
-                epoch.getStartTime().plusSeconds(pds.targon(n)),...
-                epoch.getStartTime().plusSeconds(pds.targoff(n)));
-        end
-        if(isfield(pds, 'dotson') && ~isnan(pds.dotson(n)))
-            if(isnan(pds.dotsoff(n)))
-                epoch.addTimelineAnnotation('dots on',...
-                    'dots',...
-                    epoch.getStartTime().plusSeconds(pds.dotson(n)),...
-                    epoch.getEndTime());
-            else
-                epoch.addTimelineAnnotation('dots on',...
-                    'dots',...
-                    epoch.getStartTime().plusSeconds(pds.dotson(n)),...
-                    epoch.getStartTime().plusSeconds(pds.dotsoff(n)));
-            end
-        end
-        if(isfield(pds, 'timechoice') && ~isnan(pds.timechoice(n)))
-            epoch.addTimelineAnnotation('time of choice',...
-                'choice',...
-                epoch.getStartTime().plusSeconds(pds.timechoice(n)));
-        end
-        if(isfield(pds, 'timereward') && ~isnan(pds.timereward(n)))
-            epoch.addTimelineAnnotation('time of reward',...
-                'reward',...
-                epoch.getStartTime().plusSeconds(pds.timereward(n)));
-        end
-        
+    end
+    if(isfield(pds, 'timechoice') && ~isnan(pds.timechoice(n)))
+        epoch.addTimelineAnnotation('time of choice',...
+            'choice',...
+            epoch.getStart().plusSeconds(pds.timechoice(n)));
+    end
+    if(isfield(pds, 'timereward') && ~isnan(pds.timereward(n)))
+        epoch.addTimelineAnnotation('time of reward',...
+            'reward',...
+            epoch.getStart().plusSeconds(pds.timereward(n)));
     end
 end
 
-function addResponseAndStimulus(epoch, trialFunction, eye_position_data, dv, devices, epochNumber)
+function insertEyePositionMeasurement(epoch, sourceName, eye_position_data, protocol)
     import ovation.*;
+    import us.physion.ovation.values.NumericData;
     
     
-    stimulusDeviceParams = struct2map(dv); % TODO divide the c1 file into device parameters
-    stimulusParameters = struct2map(dv); % and stimulus parameters
-    
-    dimensionLabels{1} = 'time';
-    dimensionLabels{2} = 'X-Y';
-    
-    samplingRateUnits{1} = 'Hz';
-    samplingRateUnits{2} = 'N/A';
-    
-	% eye_position_data(:,3) are sample times in seconds. We estimate a
-	% single sample rate for eye position data by taking the reciprocal of
-	% the median inter-sample difference.
+    % eye_position_data(:,3) are sample times in seconds. We estimate a
+    % single sample rate for eye position data by taking the reciprocal of
+    % the median inter-sample difference.
     sampling_rate = 1 / median(diff(eye_position_data(:,3)));
     
-    epoch.insertStimulus(devices.psychToolbox,...
-        stimulusDeviceParams,...
-        ['edu.utexas.huk.pladapus.' trialFunction],...
-        stimulusParameters,...
-        'degrees of visual angle',... 
-        []);
     
-    data = NumericData(reshape(eye_position_data(:,1:2),1, numel(eye_position_data(:,1:2))),...
-        size(eye_position_data(:,1:2)));
+    % NOTE 
+    data = NumericData();
     
-    epoch.insertResponse(devices.eye_tracker,...
-        [],...
-        data,...
-        'degrees of visual angle',...
-        dimensionLabels,...
-        [sampling_rate, 1],...
-        samplingRateUnits,...
-        Response.NUMERIC_DATA_UTI);
+    data.addData('position_x',...
+        eye_position_data(:,1)',...
+        'Degrees of visual angle',...
+        sampling_rate,...
+        'Hz');
     
-    data = NumericData(eye_position_data(:,3));
-    epoch.insertResponse(devices.eye_tracker_timer,...
-        [],...
-        data,...
+    data.addData('position_y',...
+        eye_position_data(:,2)',...
+        'Degrees of visual angle',...
+        sampling_rate,...
+        'Hz');
+    
+    data.addData('time',...
+        eye_position_data(:,3)',...
         's',...
-        'time',...
         1,...
-        'N/A',...
-        Response.NUMERIC_DATA_UTI);
+        '');
     
-    data = NumericData(eye_position_data(:,4));
-    derivationParameters = struct(); %TODO: add derivation parameters, if any
-    epoch.insertDerivedResponse(['State measurements ' epochNumber],...
-        data,...
-        'N/A',...
-        struct2map(derivationParameters),...
-        'state');
-            
+    
+    m = epoch.insertNumericMeasurement('Eye position',...
+        array2set({sourceName}),...
+        array2set({'eye_tracker'}),...
+        data);
+    
+    inputData = java.util.HashMap();
+    inputData.put('Eye position', m);
+    
+    state = epoch.addAnalysisRecord('State measurements',...
+        inputData,...
+        protocol,...
+        struct2map(struct())... % TODO parameters
+        );
+    
+    state.addNumericOutput('eye state',...
+        NumericData().addData('state', eye_position_data(:,4)', '', sampling_rate, 'Hz'));
+    
     % Ditto for columns 5, and 6
     % Units? Labels? ...
     
