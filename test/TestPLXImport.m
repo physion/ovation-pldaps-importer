@@ -124,9 +124,9 @@ classdef TestPLXImport < TestPldapsBase
             
             expected = size(self.plx.unique_number,1)*2 - 1;
             actual = 0;
-            itr = self.epochGroup.getEpochs().iterator();
-            while(itr.hasNext())
-                epoch = itr.next();
+            epochs = sort_epochs(asarray(self.epochGroup.getEpochs()));
+            for i = 1:length(epochs)
+                epoch = epochs{i};
                 analysisRecords = asarray(epoch.getAnalysisRecords(epoch.getOwner()));
                 
                 for i = 1:length(analysisRecords)
@@ -153,6 +153,8 @@ classdef TestPLXImport < TestPldapsBase
             self.context.getRepository().clear();
             
             [maxChannels,maxUnits] = size(self.plx.wave_ts);
+            
+            self.context.getRepository().clear();
             
             start_times = self.plx.ts{7}(1:2:end);
             end_times = self.plx.ts{7}(2:2:end);
@@ -240,9 +242,14 @@ classdef TestPLXImport < TestPldapsBase
         
         
         function testShouldHaveSpikeWaveformsForEachUnit(self)
-            % Spikes in plx.wave_ts should be assigned to the Epoch in which they occurred
+            % Should have same number of waveforms as spikes
+            
+            import ovation.*;
+            import matlab.unittest.constraints.*;
             
             [maxChannels,maxUnits] = size(self.plx.wave_ts);
+            
+            self.context.getRepository().clear();
             
             start_times = self.plx.ts{7}(1:2:end);
             end_times = self.plx.ts{7}(2:2:end);
@@ -259,29 +266,22 @@ classdef TestPLXImport < TestPldapsBase
                     for u = 2:maxUnits % Col 1 in unsorted
                         spikeTimes = self.plx.wave_ts{c,u};
                         
-                        spike_idx = find(spikeTimes >= start_times(i) & ...
-                            spikeTimes < end_times(i));
+                        epochSpikeTimes = spikeTimes(spikeTimes >= start_times(i) & ...
+                            spikeTimes < end_times(i)) - start_times(i);
                         
-                        % assume there's only one DR
-                        drName = ['spikeWaveforms_channel_' num2str(c-1)...
-                            '_unit_' num2str(u-1) '-'...
-                            self.drNameSuffix '-1'];
                         
-                        derivedResponses = epoch.getDerivedResponses(drName);
+                        analysisRecords = asarray(epoch.getAnalysisRecords(epoch.getOwner()));
                         
-                        assert(isempty(derivedResponses) == isempty(spike_idx));
+                        self.verifyThat(isempty(analysisRecords), IsEqualTo(isempty(epochSpikeTimes)));
                         
-                        for d = 1:length(derivedResponses)
-                            dr = derivedResponses(d);
+                        for d = 1:length(analysisRecords)
+                            % assume there's only one DR
+                            record = analysisRecords(d);
+                            waveforms = record.getOutputs().get('spike waveforms');
                             
-                            waveforms = reshape(dr.getFloatingPointData(), dr.getShape()');
+                            self.verifyThat(size(nm2data(waveforms),1),...
+                                IsEqualTo(numel(epochSpikeTimes)));
                             
-                            % Should have same number of waveforms as spike
-                            % times
-                            if(length(spike_idx) ~= size(waveforms,1))
-                                keyboard
-                            end
-                            assertEqual(length(spike_idx), size(waveforms, 1));
                         end
                     end
                 end
